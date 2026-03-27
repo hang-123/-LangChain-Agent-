@@ -1,0 +1,52 @@
+[2026-03-25T14:03:47.397976] stream_forum.runtime: TypeError('_normalize_string_list() takes 1 positional argument but 2 were given')
+Traceback (most recent call last):
+  File "F:\300_studyspace\300_学习空间\bettafish\bettafish_langchain\ForumEngine\minimal_agents.py", line 346, in run
+    insight = self._analyze_with_llm(query, company, role, profile, detail_cfg)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "F:\300_studyspace\300_学习空间\bettafish\bettafish_langchain\ForumEngine\minimal_agents.py", line 402, in _analyze_with_llm
+    "candidate_risks": _normalize_string_list(payload.get("candidate_risks"), detail_cfg["list_limit"]),
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: _normalize_string_list() takes 1 positional argument but 2 were given
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "F:\300_studyspace\300_学习空间\bettafish\bettafish_langchain\api\main.py", line 150, in event_generator
+    for event in forum_engine.stream_session(
+  File "F:\300_studyspace\300_学习空间\bettafish\bettafish_langchain\ForumEngine\forum.py", line 142, in stream_session
+    insight_result = self.insight_agent.run(
+                     ^^^^^^^^^^^^^^^^^^^^^^^
+  File "F:\300_studyspace\300_学习空间\bettafish\bettafish_langchain\ForumEngine\minimal_agents.py", line 354, in run
+    fallback = self._build_rule_based_insight(query, company, role, profile, detail_cfg)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "F:\300_studyspace\300_学习空间\bettafish\bettafish_langchain\ForumEngine\minimal_agents.py", line 416, in _build_rule_based_insight
+    focus_points = _normalize_string_list(query_profile.get("focus_points"), detail_cfg["list_limit"])[:2]
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: _normalize_string_list() takes 1 positional argument but 2 were given
+
+[2026-03-25T14:04:17.749445] stream_forum.runtime: TypeError('_normalize_string_list() takes 1 positional argument but 2 were given')
+Traceback (most recent call last):
+  File "F:\300_studyspace\300_学习空间\bettafish\bettafish_langchain\ForumEngine\minimal_agents.py", line 346, in run
+    insight = self._analyze_with_llm(query, company, role, profile, detail_cfg)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "F:\300_studyspace\300_学习空间\bettafish\bettafish_langchain\ForumEngine\minimal_agents.py", line 402, in _analyze_with_llm
+    "candidate_risks": _normalize_string_list(payload.get("candidate_risks"), detail_cfg["list_limit"]),
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: _normalize_string_list() takes 1 positional argument but 2 were given
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "F:\300_studyspace\300_学习空间\bettafish\bettafish_langchain\api\main.py", line 150, in event_generator
+    for event in forum_engine.stream_session(
+  File "F:\300_studyspace\300_学习空间\bettafish\bettafish_langchain\ForumEngine\forum.py", line 142, in stream_session
+    insight_result = self.insight_agent.run(
+                     ^^^^^^^^^^^^^^^^^^^^^^^
+  File "F:\300_studyspace\300_学习空间\bettafish\bettafish_langchain\ForumEngine\minimal_agents.py", line 354, in run
+    fallback = self._build_rule_based_insight(query, company, role, profile, detail_cfg)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "F:\300_studyspace\300_学习空间\bettafish\bettafish_langchain\ForumEngine\minimal_agents.py", line 416, in _build_rule_based_insight
+    focus_points = _normalize_string_list(query_profile.get("focus_points"), detail_cfg["list_limit"])[:2]
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: _normalize_string_list() takes 1 positional argument but 2 were given
+
