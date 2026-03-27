@@ -159,6 +159,3 @@ npm run dev
 - 多用户和权限体系
 - 更完整的测试、监控和生产级容错
 
-## 一句话总结
-
-> 这是一个基于 LangChain workflow 思路和开源多 Agent 架构二次改造的求职研究助手，核心价值不在于堆框架名词，而在于把 Agent 编排、SSE 状态流、progressive memory、fallback 和前后端联动真正落地成一个可讲、可演示的 LLM 应用。
