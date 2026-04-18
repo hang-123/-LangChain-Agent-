@@ -12,3 +12,6 @@ ENV/
 .idea/
 .vscode/
 *.swp
+
+# Local worktrees
+.worktrees/
