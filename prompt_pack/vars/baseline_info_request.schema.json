@@ -1,0 +1,38 @@
+{
+  "type": "object",
+  "required": ["repo_root", "output_dir", "questions"],
+  "properties": {
+    "repo_root": {
+      "type": "string",
+      "description": "代码库根目录，例：/workspace/repo"
+    },
+    "output_dir": {
+      "type": "string",
+      "description": "输出目录，例：prompt_pack/vars"
+    },
+    "questions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "需要补齐的维度问题列表"
+    },
+    "scan": {
+      "type": "object",
+      "properties": {
+        "config_files_glob": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "env_var_allowlist": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

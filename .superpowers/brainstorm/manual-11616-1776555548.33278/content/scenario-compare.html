@@ -1,0 +1,193 @@
+<style>
+  .hero {
+    margin-bottom: 24px;
+  }
+  .hero p {
+    max-width: 900px;
+    line-height: 1.6;
+  }
+  .compare {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-top: 22px;
+  }
+  .lane {
+    border: 1px solid #d9d2c3;
+    border-radius: 18px;
+    padding: 18px;
+    background: linear-gradient(180deg, #fffaf2 0%, #fff 100%);
+    box-shadow: 0 12px 32px rgba(70, 52, 20, 0.08);
+  }
+  .lane h3 {
+    margin: 0 0 6px;
+  }
+  .chip {
+    display: inline-block;
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 4px 8px;
+    border-radius: 999px;
+    margin-bottom: 10px;
+    background: #efe3c7;
+    color: #6f4c16;
+  }
+  .flow {
+    display: grid;
+    gap: 10px;
+    margin: 16px 0;
+  }
+  .node {
+    border-radius: 14px;
+    padding: 12px 14px;
+    background: #fff;
+    border: 1px solid #eadfca;
+  }
+  .node strong {
+    display: block;
+    margin-bottom: 4px;
+  }
+  .arrow {
+    text-align: center;
+    color: #a7833e;
+    font-weight: 700;
+    font-size: 18px;
+    line-height: 1;
+  }
+  .summary {
+    border-top: 1px dashed #d9c9aa;
+    margin-top: 14px;
+    padding-top: 14px;
+  }
+  .summary ul {
+    margin: 8px 0 0 18px;
+    line-height: 1.6;
+  }
+  .winner {
+    margin-top: 22px;
+    padding: 16px 18px;
+    border-radius: 16px;
+    background: #2f5d50;
+    color: #f6f2e8;
+  }
+  .winner strong {
+    color: #fff8d8;
+  }
+  .decision {
+    margin-top: 24px;
+  }
+  @media (max-width: 900px) {
+    .compare {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+
+<div class="hero">
+  <h2>第二种 vs 第三种：数据流对比</h2>
+  <p class="subtitle">把它理解成“内部闭环”与“内部闭环 + 外部证据增强”的区别。左边更像求职 CRM，右边更像带研究引擎的求职操作系统。</p>
+</div>
+
+<div class="compare">
+  <div class="lane">
+    <div class="chip">Option A</div>
+    <h3>第二种：持续求职助手</h3>
+    <p>主线是保存和复用候选人资产，让每次分析都站在上一次结果之上。</p>
+    <div class="flow">
+      <div class="node">
+        <strong>1. 用户输入</strong>
+        简历、手动粘贴 JD、投递状态、补充偏好
+      </div>
+      <div class="arrow">↓</div>
+      <div class="node">
+        <strong>2. 结构化层</strong>
+        `ResumeAsset -> CandidateProfile -> ResumeEvidence`<br>
+        `raw_jd_text -> JobPosting -> JobRequirement`
+      </div>
+      <div class="arrow">↓</div>
+      <div class="node">
+        <strong>3. 工作流层</strong>
+        Supervisor / Workflow 决定进入匹配、改简历、面试准备或投递记录
+      </div>
+      <div class="arrow">↓</div>
+      <div class="node">
+        <strong>4. 输出层</strong>
+        MatchAssessment、ResumeVersion、InterviewPrepPack、ApplicationRecord
+      </div>
+    </div>
+    <div class="summary">
+      <strong>系统重点</strong>
+      <ul>
+        <li>画像沉淀、版本管理、状态跟踪</li>
+        <li>分析依据主要来自用户给的材料</li>
+        <li>外部岗位认知弱时，结论保守但实现简单</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="lane">
+    <div class="chip">Option B</div>
+    <h3>第三种：研究增强型求职助手</h3>
+    <p>保留左边全部流程，但在岗位侧自动补“真实 JD / 公司画像 / 面经 / 技术栈”证据。</p>
+    <div class="flow">
+      <div class="node">
+        <strong>1. 用户输入</strong>
+        简历、目标公司/岗位、可选 JD、投递状态、偏好
+      </div>
+      <div class="arrow">↓</div>
+      <div class="node">
+        <strong>2. 双通道采集</strong>
+        候选人通道：简历解析、画像沉淀<br>
+        岗位通道：SearchAgent 检索真实 JD、公司线索、面经证据
+      </div>
+      <div class="arrow">↓</div>
+      <div class="node">
+        <strong>3. 证据融合层</strong>
+        `JobPosting + JobRequirement + ExternalEvidencePack`<br>
+        对外部证据做时效、来源、置信度归因
+      </div>
+      <div class="arrow">↓</div>
+      <div class="node">
+        <strong>4. 工作流层</strong>
+        Supervisor 不只做匹配，还能输出“更像真实团队要求”的风险和准备动作
+      </div>
+      <div class="arrow">↓</div>
+      <div class="node">
+        <strong>5. 输出层</strong>
+        除基础产物外，再多 `Evidence-backed gaps`、公司差异卡、定向准备计划
+      </div>
+    </div>
+    <div class="summary">
+      <strong>系统重点</strong>
+      <ul>
+        <li>内部资产和外部岗位信号一起驱动决策</li>
+        <li>分析更贴近真实招聘场景，差异化更强</li>
+        <li>要额外处理证据质量、去重、归因和时效性</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="winner">
+  <strong>对你当前仓库的直觉推荐：</strong>
+  如果目标是“最快落地”，先做第二种。
+  如果目标是“复用现有 Search / Query / Insight 能力，并做出明显差异化”，第三种更贴合这个项目的已有资产。
+</div>
+
+<div class="decision options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>先做第二种</h3>
+      <p>先把候选人资产、工作流、投递记录跑通，外部研究后补。</p>
+    </div>
+  </div>
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>直接做第三种</h3>
+      <p>从一开始就把现有研究引擎并进来，做更强的岗位侧增强。</p>
+    </div>
+  </div>
+</div>

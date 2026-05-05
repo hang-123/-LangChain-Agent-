@@ -1,0 +1,6 @@
+{"ts":"2026-04-05T10:52:37.6912849+08:00","step":"scan_repo","status":"ok","repo_path":"F:/300_studyspace/300_学习空间/bettafish/bettafish_langchain","artifact_path":"prompt_pack/vars/baseline.json"}
+{"ts":"2026-04-05T10:52:37.6912849+08:00","step":"detect_python_version","status":"ok","repo_path":"F:/300_studyspace/300_学习空间/bettafish/bettafish_langchain","artifact_path":"prompt_pack/vars/baseline.json"}
+{"ts":"2026-04-05T10:52:37.6912849+08:00","step":"detect_backend_dependencies","status":"partial","repo_path":"F:/300_studyspace/300_学习空间/bettafish/bettafish_langchain","artifact_path":"prompt_pack/vars/baseline.json"}
+{"ts":"2026-04-05T10:52:37.6912849+08:00","step":"scan_env_allowlist","status":"ok","repo_path":"F:/300_studyspace/300_学习空间/bettafish/bettafish_langchain","artifact_path":"prompt_pack/vars/baseline.json"}
+{"ts":"2026-04-05T10:52:37.6912849+08:00","step":"derive_stream_protocol","status":"ok","repo_path":"F:/300_studyspace/300_学习空间/bettafish/bettafish_langchain","artifact_path":"prompt_pack/vars/ARCH_BASELINE.md"}
+{"ts":"2026-04-05T10:52:37.6912849+08:00","step":"write_baseline_artifacts","status":"ok","repo_path":"F:/300_studyspace/300_学习空间/bettafish/bettafish_langchain","artifact_path":"prompt_pack/vars/ARCH_BASELINE.md"}

@@ -1,0 +1,9 @@
+{
+  "type": "object",
+  "required": ["artifacts", "pass_rate", "workflow"],
+  "properties": {
+    "artifacts": { "type": "array", "items": { "type": "string" } },
+    "pass_rate": { "type": "number" },
+    "workflow": { "type": "string" }
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "type": "object",
+  "required": ["artifacts", "gate", "local_repro_command"],
+  "properties": {
+    "artifacts": { "type": "array", "items": { "type": "string" } },
+    "gate": { "type": "string" },
+    "local_repro_command": { "type": "string" }
+  }
+}

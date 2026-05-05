@@ -1,0 +1,10 @@
+{
+  "baseline_path": "prompt_pack/vars/baseline.json",
+  "notes_md_path": "prompt_pack/vars/ARCH_BASELINE.md",
+  "missing_items_count": 13,
+  "detected_versions": {
+    "python_runtime": "3.11.14",
+    "fastapi": "0.110.2",
+    "langgraph": "1.1.3"
+  }
+}

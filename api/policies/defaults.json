@@ -1,0 +1,84 @@
+{
+  "version": "2026-04-04",
+  "retrieval_policy": {
+    "min_evidence_count": 4,
+    "min_company_specific_sources": 2,
+    "generic_source_cap": 3,
+    "context_limit": 12,
+    "cache_ttl_seconds": 600,
+    "required_source_classes": {
+      "general": ["company_profile", "jd", "interview"],
+      "tech_coding": ["company_profile", "jd", "interview", "tech_stack"],
+      "salary_culture": ["company_profile", "jd", "interview", "salary_culture"]
+    }
+  },
+  "quality_policy": {
+    "min_claim_count": 4,
+    "min_claim_evidence_coverage": 70,
+    "min_action_plan_source_coverage": 60,
+    "min_company_mentions": 2,
+    "min_markdown_headings": 8,
+    "min_report_word_estimate": 320,
+    "min_company_specific_action_items": 2,
+    "min_evidence_bound_action_items": 2,
+    "enable_soft_llm_reviewer": true
+  },
+  "retry_policy": {
+    "max_retries": 3,
+    "allow_degraded_output": true,
+    "issue_retry_targets": {
+      "company_specific_sources_low": "query",
+      "company_specific_requirement_missing": "query",
+      "business_domain_missing": "query",
+      "missing_tech_stack": "query",
+      "tech_not_evidence_backed": "query",
+      "generic_interviewer_questions": "insight",
+      "generic_risk_section": "insight",
+      "templated_action_plan": "insight",
+      "action_plan_company_specificity_low": "insight",
+      "action_plan_evidence_binding_low": "insight",
+      "action_plan_missing_structured_input": "insight",
+      "missing_markdown_section": "report",
+      "report_too_short": "report",
+      "weak_evidence_section_layout": "report"
+    }
+  },
+  "report_policy": {
+    "title": "专属求职研究报告",
+    "required_sections": [
+      "## 一、岗位与公司概览",
+      "## 二、岗位能力要求拆解",
+      "## 三、真实面经与面试官追问",
+      "## 四、候选人风险点与准备建议",
+      "## 五、一周行动清单",
+      "## 附：证据来源"
+    ],
+    "section_order": [
+      "## 一、岗位与公司概览",
+      "## 二、岗位能力要求拆解",
+      "## 三、真实面经与面试官追问",
+      "## 四、候选人风险点与准备建议",
+      "## 五、一周行动清单",
+      "## 附：证据来源"
+    ],
+    "max_evidence_rows": 10,
+    "min_source_urls_in_report": 2,
+    "renderer_first": true,
+    "enable_llm_polish": true,
+    "polish_overview": true,
+    "polish_interview_angle": true
+  },
+  "eval_policy": {
+    "suite_name": "bettafish_harness_suite",
+    "min_retrieval_score": 60,
+    "min_attribution_score": 60,
+    "min_insight_score": 60,
+    "min_report_compliance_score": 70
+  },
+  "persistence_policy": {
+    "enabled": true,
+    "base_dir": "logs/harness",
+    "persist_run_traces": true,
+    "persist_eval_results": true
+  }
+}

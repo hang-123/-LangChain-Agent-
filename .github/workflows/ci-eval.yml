@@ -1,0 +1,101 @@
+name: ci-eval
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  eval-smoke:
+    runs-on: ubuntu-latest
+    env:
+      QUERY_ENGINE_API_KEY: ${{ secrets.QUERY_ENGINE_API_KEY }}
+      QUERY_ENGINE_BASE_URL: ${{ secrets.QUERY_ENGINE_BASE_URL }}
+      QUERY_ENGINE_MODEL_NAME: ${{ secrets.QUERY_ENGINE_MODEL_NAME || 'qwen-plus' }}
+      TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
+      ENABLE_NODE_PERF: "1"
+      PYTHONUTF8: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-minimal.txt
+
+      - name: Run smoke eval
+        run: |
+          python scripts/run_ci_eval.py \
+            --case-id general_bytedance_backend_intern \
+            --case-id tech_meituan_backend \
+            --output-json logs/ci/eval_results.json \
+            --output-md logs/ci/eval_report.md \
+            --min-score 75
+
+      - name: Resolve main baseline artifact
+        id: baseline
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const { data: runs } = await github.rest.actions.listWorkflowRuns({
+              owner,
+              repo,
+              workflow_id: 'main-eval-baseline.yml',
+              branch: 'main',
+              status: 'success',
+              per_page: 1
+            });
+            if (!runs.workflow_runs.length) {
+              core.setOutput('artifact_url', '');
+              return;
+            }
+            const runId = runs.workflow_runs[0].id;
+            const { data: artifacts } = await github.rest.actions.listWorkflowRunArtifacts({
+              owner,
+              repo,
+              run_id: runId
+            });
+            const artifact = artifacts.artifacts.find(item => item.name === 'main-eval-baseline');
+            core.setOutput('artifact_url', artifact ? artifact.archive_download_url : '');
+
+      - name: Download main baseline artifact
+        if: steps.baseline.outputs.artifact_url != ''
+        run: |
+          mkdir -p logs/ci/baseline
+          curl -L \
+            -H "Authorization: Bearer ${{ github.token }}" \
+            -H "Accept: application/vnd.github+json" \
+            "${{ steps.baseline.outputs.artifact_url }}" \
+            -o logs/ci/baseline/baseline.zip
+          unzip -o logs/ci/baseline/baseline.zip -d logs/ci/baseline
+
+      - name: Build eval diff
+        if: steps.baseline.outputs.artifact_url != ''
+        run: |
+          BASELINE_JSON=$(find logs/ci/baseline -name 'baseline_eval_results.json' | head -n 1)
+          if [ -n "$BASELINE_JSON" ]; then
+            python scripts/run_eval_diff.py \
+              --baseline "$BASELINE_JSON" \
+              --current logs/ci/eval_results.json \
+              --output-json logs/ci/eval_diff.json \
+              --output-md logs/ci/eval_diff.md
+          else
+            echo "No baseline_eval_results.json found inside downloaded artifact."
+          fi
+
+      - name: Upload eval artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-eval-artifacts
+          path: |
+            logs/ci/eval_results.json
+            logs/ci/eval_report.md
+            logs/ci/eval_diff.json
+            logs/ci/eval_diff.md

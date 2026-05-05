@@ -1,0 +1,9 @@
+{
+  "type": "object",
+  "required": ["repo_root", "feature_flag", "metrics_endpoint"],
+  "properties": {
+    "repo_root": { "type": "string" },
+    "feature_flag": { "type": "string" },
+    "metrics_endpoint": { "type": "string" }
+  }
+}

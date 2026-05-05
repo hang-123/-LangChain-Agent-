@@ -1,0 +1,5 @@
+{
+  "repo_root": "{{REPO_ROOT}}",
+  "feature_flag": "ENABLE_NODE_PERF",
+  "metrics_endpoint": "/metrics"
+}

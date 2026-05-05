@@ -1,0 +1,9 @@
+{
+  "type": "object",
+  "required": ["backend", "metrics", "tests_added"],
+  "properties": {
+    "backend": { "type": "string" },
+    "metrics": { "type": "array", "items": { "type": "string" } },
+    "tests_added": { "type": "array", "items": { "type": "string" } }
+  }
+}

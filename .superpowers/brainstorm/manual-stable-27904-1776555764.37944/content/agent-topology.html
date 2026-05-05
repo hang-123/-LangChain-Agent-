@@ -1,0 +1,212 @@
+<style>
+  .hero {
+    margin-bottom: 20px;
+  }
+  .hero p {
+    max-width: 940px;
+    line-height: 1.65;
+  }
+  .stage-grid {
+    display: grid;
+    grid-template-columns: 220px 1fr 260px;
+    gap: 18px;
+    align-items: start;
+  }
+  .col {
+    display: grid;
+    gap: 14px;
+  }
+  .card {
+    background: linear-gradient(180deg, #fff 0%, #fbf6ec 100%);
+    border: 1px solid #e7dac3;
+    border-radius: 18px;
+    padding: 16px;
+    box-shadow: 0 12px 28px rgba(81, 61, 27, 0.08);
+  }
+  .card h3 {
+    margin: 0 0 6px;
+    font-size: 18px;
+  }
+  .card p {
+    margin: 0;
+    line-height: 1.55;
+  }
+  .label {
+    display: inline-block;
+    margin-bottom: 8px;
+    padding: 4px 8px;
+    border-radius: 999px;
+    background: #efe1c4;
+    color: #6a4d1f;
+    font-size: 12px;
+    letter-spacing: 0.06em;
+  }
+  .hub {
+    background: linear-gradient(180deg, #264d59 0%, #16343d 100%);
+    color: #eef6f8;
+    border-color: #264d59;
+  }
+  .hub .label {
+    background: rgba(255,255,255,0.14);
+    color: #fff8de;
+  }
+  .verifier {
+    background: linear-gradient(180deg, #5e3d42 0%, #44292d 100%);
+    color: #fff3f0;
+    border-color: #5e3d42;
+  }
+  .verifier .label {
+    background: rgba(255,255,255,0.14);
+    color: #ffe5cf;
+  }
+  .artifacts {
+    background: linear-gradient(180deg, #fffaf3 0%, #f6efe2 100%);
+  }
+  .flow-stack {
+    display: grid;
+    gap: 12px;
+  }
+  .agent-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+  }
+  .arrow-note {
+    margin-top: 8px;
+    font-size: 13px;
+    color: #785726;
+  }
+  .impact {
+    margin-top: 22px;
+    padding: 18px;
+    border: 1px dashed #d2bb8f;
+    border-radius: 18px;
+    background: #fffaf1;
+  }
+  .impact ul {
+    margin: 10px 0 0 18px;
+    line-height: 1.7;
+  }
+  .decision {
+    margin-top: 22px;
+  }
+  @media (max-width: 980px) {
+    .stage-grid {
+      grid-template-columns: 1fr;
+    }
+    .agent-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+
+<div class="hero">
+  <h2>研究增强型 Job Assistant 的 Agent Topology</h2>
+  <p class="subtitle">这版不是把流水线硬改名，而是把系统拆成“调度中枢 + 领域 Agent + 证据与产物总线 + 审核层”。`job-assistant` 会从“单纯 specs 集合”升级成真正的多 Agent 业务域。</p>
+</div>
+
+<div class="stage-grid">
+  <div class="col">
+    <div class="card">
+      <div class="label">Entry</div>
+      <h3>User Request</h3>
+      <p>用户输入简历、目标岗位 / 公司、可选 JD、投递状态、补充偏好。</p>
+    </div>
+    <div class="card hub">
+      <div class="label">Coordinator</div>
+      <h3>SupervisorAgent</h3>
+      <p>识别意图、决定工作流、分派任务、收集产物、组装最终响应。</p>
+    </div>
+    <div class="card verifier">
+      <div class="label">Guardrail</div>
+      <h3>VerifierAgent</h3>
+      <p>审查事实 / 推断 / 建议边界，检查证据覆盖、冲突、时效和降级条件。</p>
+    </div>
+  </div>
+
+  <div class="col">
+    <div class="flow-stack">
+      <div class="agent-grid">
+        <div class="card">
+          <div class="label">Candidate Domain</div>
+          <h3>ProfileAgent</h3>
+          <p>从简历与用户补充输入中提取 `CandidateProfile` 和 `ResumeEvidence`。</p>
+        </div>
+        <div class="card">
+          <div class="label">Job Domain</div>
+          <h3>JobIntelligenceAgent</h3>
+          <p>融合 `raw_jd_text` 与现有 Search / Query / Insight 能力，产出岗位事实和外部证据包。</p>
+        </div>
+      </div>
+
+      <div class="agent-grid">
+        <div class="card">
+          <div class="label">Decision Domain</div>
+          <h3>MatchingAgent</h3>
+          <p>基于候选人证据与岗位要求生成 `MatchAssessment`，解释优势、差距与风险。</p>
+        </div>
+        <div class="card">
+          <div class="label">Delivery Domain</div>
+          <h3>ResumeTailorAgent</h3>
+          <p>把匹配分析转成 `ResumeTailoringPlan` 和 `ResumeVersion`，但不能越过事实边界。</p>
+        </div>
+      </div>
+
+      <div class="agent-grid">
+        <div class="card">
+          <div class="label">Delivery Domain</div>
+          <h3>InterviewCoachAgent</h3>
+          <p>输出 `InterviewPrepPack`，问题与追问必须绑定候选人证据和岗位证据。</p>
+        </div>
+        <div class="card">
+          <div class="label">Ops Domain</div>
+          <h3>ApplicationOpsAgent</h3>
+          <p>负责投递记录、状态推进、下一步提醒和幂等写入。</p>
+        </div>
+      </div>
+      <div class="arrow-note">现有 `IntentRouter -> Search -> Query -> Insight -> Report/Review` 不再是产品主线，而是收编进 `JobIntelligenceAgent` 内部，变成岗位证据增强子系统。</div>
+    </div>
+  </div>
+
+  <div class="col">
+    <div class="card artifacts">
+      <div class="label">Artifact Bus</div>
+      <h3>Shared Artifact Store</h3>
+      <p>`ResumeAsset`<br>`CandidateProfile`<br>`ResumeEvidence`<br>`JobPosting`<br>`JobRequirement`<br>`ExternalEvidencePack`<br>`MatchAssessment`<br>`ResumeVersion`<br>`InterviewPrepPack`<br>`ApplicationRecord`</p>
+    </div>
+    <div class="card">
+      <div class="label">Key Shift</div>
+      <h3>Agent-like by Design</h3>
+      <p>Agent 之间不直接传大段 prompt，而是通过 artifact 契约协作；Supervisor 负责编排，Verifier 负责放行。</p>
+    </div>
+  </div>
+</div>
+
+<div class="impact">
+  <strong>`job-assistant` 需要同步升级的文档边界</strong>
+  <ul>
+    <li>`00-product-prd.md`：从“用户上传简历 + 粘贴 JD”扩展为“用户输入 + 外部岗位证据增强”。</li>
+    <li>`02-domain-model.md`：新增 `ExternalEvidencePack`、可能还要补 `TaskPlan / VerificationReport`。</li>
+    <li>`10-supervisor-agent.md`：从简单路由器升级成真正的多 Agent 编排中枢。</li>
+    <li>`12-jd-analyst-agent.md`：建议演进为 `JobIntelligenceAgent`，把外部检索与 JD 解析合并成岗位侧事实层。</li>
+    <li>`16-workflow-agent.md`：要体现 artifact 驱动、可恢复、可审计的多 Agent 工作流。</li>
+    <li>可能新增 `17-verifier-agent.md`：专门定义审核和降级规则。</li>
+  </ul>
+</div>
+
+<div class="decision options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>这个拓扑方向是对的</h3>
+      <p>继续往“数据流 + 文档更新计划”收敛。</p>
+    </div>
+  </div>
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>还需要调整 Agent 边界</h3>
+      <p>先回到拓扑层，再修改领域拆分。</p>
+    </div>
+  </div>
+</div>

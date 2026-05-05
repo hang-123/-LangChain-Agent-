@@ -1,0 +1,29 @@
+[
+  {
+    "case_id": "general_bytedance_backend_intern",
+    "query": "帮我研究字节跳动后端开发实习，重点看真实JD、面经和一周准备动作。",
+    "expected_intent": "general",
+    "minimum_evidence_count": 4,
+    "company_assertions": ["字节", "后端"],
+    "allow_conservative": true,
+    "risk_tags": ["company_specificity", "interview_expectations"]
+  },
+  {
+    "case_id": "tech_meituan_backend",
+    "query": "帮我研究美团后端开发，重点看技术栈、系统设计、算法和真实面经。",
+    "expected_intent": "tech_coding",
+    "minimum_evidence_count": 4,
+    "company_assertions": ["美团", "技术栈"],
+    "allow_conservative": true,
+    "risk_tags": ["technical_stack", "coding_depth"]
+  },
+  {
+    "case_id": "culture_tencent_backend",
+    "query": "帮我研究腾讯后台开发岗位，重点看薪资区间、团队文化、工作节奏和匹配风险。",
+    "expected_intent": "salary_culture",
+    "minimum_evidence_count": 4,
+    "company_assertions": ["腾讯", "文化"],
+    "allow_conservative": true,
+    "risk_tags": ["salary_signal", "culture_fit"]
+  }
+]

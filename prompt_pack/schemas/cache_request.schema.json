@@ -1,0 +1,9 @@
+{
+  "type": "object",
+  "required": ["backend", "feature_flag", "ttl_seconds"],
+  "properties": {
+    "backend": { "type": "string" },
+    "feature_flag": { "type": "string" },
+    "ttl_seconds": { "type": "integer" }
+  }
+}

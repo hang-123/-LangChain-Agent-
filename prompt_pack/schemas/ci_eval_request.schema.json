@@ -1,0 +1,9 @@
+{
+  "type": "object",
+  "required": ["workflow_path", "suite_script", "threshold"],
+  "properties": {
+    "workflow_path": { "type": "string" },
+    "suite_script": { "type": "string" },
+    "threshold": { "type": "number" }
+  }
+}

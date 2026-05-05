@@ -1,0 +1,427 @@
+{
+  "generated_at": "2026-04-05T11:18:04.5187695+08:00",
+  "repo_root": "F:/300_studyspace/300_学习空间/bettafish/bettafish_langchain",
+  "scan_scope": {
+    "config_files": [
+      "requirements-minimal.txt",
+      ".env.example",
+      ".env",
+      "api/core/settings.py",
+      "api/policies/defaults.json",
+      "api/main.py",
+      "api/tools/__init__.py",
+      "web/package.json",
+      "README.md"
+    ],
+    "notes": [
+      "扫描目录时 .pytest_cache 存在拒绝访问，不影响项目主结构识别。",
+      "为避免泄露 secrets，.env 仅记录变量是否存在与长度，不写入真实值。"
+    ]
+  },
+  "project_summary": {
+    "project_name": "bettafish_langchain",
+    "status": "已检测",
+    "project_type": {
+      "value": "FastAPI + LangGraph research harness + React/Vite frontend",
+      "status": "已检测",
+      "source": [
+        "api/main.py",
+        "api/core/executor.py",
+        "web/package.json"
+      ]
+    },
+    "primary_output_type": {
+      "value": "Markdown research report",
+      "status": "已检测",
+      "source": [
+        "api/main.py",
+        "api/agents/report_agent.py",
+        "api/reporting/renderer.py"
+      ]
+    }
+  },
+  "detected_versions": {
+    "python_runtime": {
+      "value": "3.11.14",
+      "status": "已检测",
+      "source": "D:/software/Develop/anaconda3/envs/bettafish/python.exe -V"
+    },
+    "backend_dependency_constraints": {
+      "fastapi": ">=0.115,<1.0",
+      "langgraph": ">=0.2.0",
+      "pydantic": ">=2.8,<3.0",
+      "langchain-core": ">=0.3.0",
+      "langchain-openai": ">=0.2.0",
+      "tavily-python": ">=0.3.0",
+      "pytest": ">=8.0,<9.0"
+    },
+    "frontend_dependency_versions": {
+      "react": "^18.3.1",
+      "vite": "^7.2.4",
+      "typescript": "~5.9.3",
+      "tailwindcss": "^3.4.19"
+    },
+    "active_python_env_packages": {
+      "fastapi": {
+        "value": "0.110.2",
+        "status": "已检测",
+        "source": "D:/software/Develop/anaconda3/envs/bettafish/python.exe -m pip show fastapi"
+      },
+      "langgraph": {
+        "value": "1.1.3",
+        "status": "已检测",
+        "source": "D:/software/Develop/anaconda3/envs/bettafish/python.exe -m pip show langgraph"
+      },
+      "pytest": {
+        "value": "9.0.2",
+        "status": "已检测",
+        "source": "D:/software/Develop/anaconda3/envs/bettafish/python.exe -m pip show pytest"
+      }
+    }
+  },
+  "architecture": {
+    "backend_framework": {
+      "value": "FastAPI",
+      "status": "已检测",
+      "source": [
+        "api/main.py",
+        "requirements-minimal.txt"
+      ]
+    },
+    "agent_runtime": {
+      "value": "LangGraph StateGraph + ResearchExecutionSession",
+      "status": "已检测",
+      "source": [
+        "api/core/graph.py",
+        "api/core/executor.py"
+      ]
+    },
+    "api_surface": {
+      "value": [
+        "/api/research/run",
+        "/api/research/stream",
+        "/api/research/cases",
+        "/api/research/cases/run",
+        "/api/research/eval"
+      ],
+      "status": "已检测",
+      "source": "api/main.py"
+    },
+    "stream_protocol": {
+      "value": "SSE",
+      "status": "已检测",
+      "source": [
+        "api/main.py: StreamingResponse media_type=text/event-stream",
+        "web/src/lib/api.ts: Accept=text/event-stream"
+      ]
+    },
+    "policy_control_plane": {
+      "value": "JSON defaults + typed HarnessPolicy + policy_loader",
+      "status": "已检测",
+      "source": [
+        "api/policies/defaults.json",
+        "api/core/policies.py",
+        "api/core/policy_loader.py"
+      ]
+    },
+    "primary_report_mode": {
+      "value": "renderer-first",
+      "status": "已检测",
+      "source": [
+        "api/agents/report_agent.py",
+        "api/reporting/renderer.py",
+        "api/policies/defaults.json"
+      ]
+    }
+  },
+  "models": {
+    "llm_provider": {
+      "value": "{{LLM_PROVIDER}}",
+      "status": "未指定",
+      "notes": "代码未显式声明 provider；根据 QUERY_ENGINE_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1 与模型 qwen-plus，可推断为 DashScope/OpenAI-compatible 接入，但仍需人工确认。"
+    },
+    "main_model": {
+      "value": "qwen-plus",
+      "status": "已检测",
+      "source": [
+        ".env.example",
+        "api/core/settings.py",
+        ".env (安全检查仅确认变量存在)"
+      ]
+    },
+    "review_model": {
+      "value": "{{REVIEW_MODEL}}",
+      "status": "未指定",
+      "notes": "当前 ReviewAgent 未拆分独立模型，默认沿用主模型。"
+    },
+    "embed_model": {
+      "value": "{{EMBED_MODEL}}",
+      "status": "未指定",
+      "notes": "仓库中未发现 embedding 配置或向量检索实现。"
+    }
+  },
+  "providers": {
+    "search_providers": {
+      "value": [
+        "Tavily",
+        "company_profile_searcher",
+        "jd_searcher",
+        "interview_searcher",
+        "salary_culture_searcher",
+        "tech_stack_searcher"
+      ],
+      "status": "已检测",
+      "source": [
+        "api/tools/__init__.py",
+        "api/tools/tavily_searcher.py"
+      ]
+    },
+    "frontend_api_base": {
+      "value": "http://localhost:9000",
+      "status": "已检测",
+      "source": [
+        ".env.example",
+        "web/src/lib/api.ts"
+      ]
+    }
+  },
+  "persistence_and_eval": {
+    "persistence_backend": {
+      "value": "JSONL via FileHarnessRepository",
+      "status": "已检测",
+      "source": "api/core/persistence.py"
+    },
+    "persist_dir": {
+      "value": "logs/harness",
+      "status": "已检测",
+      "source": "api/policies/defaults.json"
+    },
+    "eval_harness": {
+      "value": "ResearchCase replay + score_case_result + EvalSuiteSummary",
+      "status": "已检测",
+      "source": [
+        "api/evals/harness.py",
+        "api/evals/research_cases.json",
+        "scripts/run_eval_suite.py"
+      ]
+    },
+    "ci_workflow": {
+      "value": ".github/workflows/ci-eval.yml",
+      "status": "已检测",
+      "source": ".github/workflows/ci-eval.yml",
+      "notes": "已接入 smoke eval workflow，真正生效仍依赖 GitHub Actions secrets。"
+    },
+    "query_store": {
+      "value": "SQLite dual-write query store",
+      "status": "已检测",
+      "source": [
+        "api/core/query_store.py",
+        "api/core/persistence.py",
+        "docs/QUERY_STORE.md"
+      ]
+    }
+  },
+  "security_and_ops": {
+    "deployment_env": {
+      "value": "{{DEPLOYMENT_ENV}}",
+      "status": "未指定",
+      "notes": "能确认存在本地开发默认值与 uvicorn 启动方式，但未发现生产部署拓扑、IaC 或集群信息。"
+    },
+    "k8s_or_not": {
+      "value": "{{K8S_OR_NOT}}",
+      "status": "未指定",
+      "notes": "未发现 kubernetes/helm/docker-compose 配置。"
+    },
+    "gpu_type": {
+      "value": "{{GPU_TYPE}}",
+      "status": "未指定",
+      "notes": "仓库未包含任何 GPU 或推理硬件说明。"
+    },
+    "authn": {
+      "value": "{{AUTHN}}",
+      "status": "未指定",
+      "notes": "API 层未发现显式鉴权中间件、JWT/OAuth 配置或网关说明。"
+    },
+    "authz_model": {
+      "value": "{{AUTHZ_MODEL}}",
+      "status": "未指定",
+      "notes": "未发现 RBAC/ABAC 或多租户授权模型。"
+    },
+    "audit_scope": {
+      "value": "run/eval/research_case/user_feedback/security_events + SQLite query store",
+      "status": "已检测",
+      "source": [
+        "api/core/persistence.py",
+        "api/core/executor.py",
+        "api/core/query_store.py"
+      ],
+      "notes": "已支持 security_events.jsonl 与 query store 双写，但平台侧长期归档策略仍未指定。"
+    },
+    "otel_exporter": {
+      "value": "console/otlp via feature flag",
+      "status": "部分已检测",
+      "source": [
+        "api/core/otel.py",
+        "api/main.py",
+        ".env.example"
+      ],
+      "notes": "应用侧 OTel SDK 已接入；真正 exporter 选择与 collector 终点仍依赖运行环境配置。"
+    },
+    "prom_endpoint": {
+      "value": "/metrics",
+      "status": "部分已检测",
+      "source": [
+        "api/main.py",
+        "api/core/metrics.py"
+      ],
+      "notes": "Prometheus client 与 /metrics 路由已接入；平台侧 scrape job、告警规则与 Prometheus 目标配置仍未指定。"
+    },
+    "redis_url": {
+      "value": "{{REDIS_URL}}",
+      "status": "未指定",
+      "notes": ".env 安全检查未发现 REDIS_URL；当前缓存策略仍为策略层字段，未接共享缓存。"
+    },
+    "guardrails": {
+      "value": "minimal input/retrieval/output/execution rails",
+      "status": "已检测",
+      "source": [
+        "api/core/guardrails.py",
+        "guardrails/config.yml",
+        ".github/workflows/security-injection.yml"
+      ]
+    }
+  },
+  "budget_and_team": {
+    "monthly_budget": {
+      "value": "{{MONTHLY_BUDGET}}",
+      "status": "未指定",
+      "notes": "仓库未包含预算或账单上限。"
+    },
+    "cost_per_run_cap": {
+      "value": "{{COST_PER_RUN_CAP}}",
+      "status": "未指定",
+      "notes": "未发现单次 run 成本阈值。"
+    },
+    "team_size": {
+      "value": "{{TEAM_SIZE}}",
+      "status": "未指定",
+      "notes": "仓库未体现团队规模。"
+    },
+    "roles": {
+      "value": "{{ROLES}}",
+      "status": "未指定",
+      "notes": "未发现 owner roster 或岗位职责分工。"
+    },
+    "owner": {
+      "value": "{{OWNER}}",
+      "status": "未指定",
+      "notes": "未发现统一技术 owner 或项目 owner 声明。"
+    }
+  },
+  "env_allowlist_status": {
+    "QUERY_ENGINE_API_KEY": {
+      "status": "present",
+      "length": 35
+    },
+    "QUERY_ENGINE_BASE_URL": {
+      "status": "present",
+      "length": 49
+    },
+    "QUERY_ENGINE_MODEL_NAME": {
+      "status": "present",
+      "length": 9
+    },
+    "TAVILY_API_KEY": {
+      "status": "present",
+      "length": 41
+    },
+    "OPENAI_API_KEY": {
+      "status": "missing"
+    },
+    "DASHSCOPE_API_KEY": {
+      "status": "missing"
+    },
+    "LLM_PROVIDER": {
+      "status": "missing"
+    },
+    "MAIN_MODEL": {
+      "status": "missing"
+    },
+    "REVIEW_MODEL": {
+      "status": "missing"
+    },
+    "EMBED_MODEL": {
+      "status": "missing"
+    },
+    "REDIS_URL": {
+      "status": "missing"
+    }
+  },
+  "missing_items": [
+    {
+      "key": "DEPLOYMENT_ENV",
+      "status": "未指定",
+      "how_to_get": "向 DevOps 获取部署拓扑，或补充 Docker/K8s/IaC 配置路径。"
+    },
+    {
+      "key": "LLM_PROVIDER",
+      "status": "未指定",
+      "how_to_get": "确认 QUERY_ENGINE_BASE_URL 对应的实际服务商，并在配置层显式声明 provider。"
+    },
+    {
+      "key": "REVIEW_MODEL",
+      "status": "未指定",
+      "how_to_get": "决定是否为 ReviewAgent 拆分更便宜或更严格的审查模型。"
+    },
+    {
+      "key": "EMBED_MODEL",
+      "status": "未指定",
+      "how_to_get": "若后续引入向量检索，补充 embedding provider 与模型名。"
+    },
+    {
+      "key": "REDIS_URL",
+      "status": "未指定",
+      "how_to_get": "若进入 T10，需要提供 Redis 实例地址、凭据和 namespace 规范。"
+    },
+    {
+      "key": "MONTHLY_BUDGET",
+      "status": "未指定",
+      "how_to_get": "向产品/财务确认月预算。"
+    },
+    {
+      "key": "COST_PER_RUN_CAP",
+      "status": "未指定",
+      "how_to_get": "由产品或平台设定单次 run 成本阈值。"
+    },
+    {
+      "key": "TEAM_SIZE",
+      "status": "未指定",
+      "how_to_get": "向项目负责人确认团队规模。"
+    },
+    {
+      "key": "ROLES",
+      "status": "未指定",
+      "how_to_get": "列出后端、前端、平台、安全、SRE 等 owner 分工。"
+    },
+    {
+      "key": "OWNER",
+      "status": "未指定",
+      "how_to_get": "指定单一技术 owner 或负责人。"
+    },
+    {
+      "key": "AUTHN",
+      "status": "未指定",
+      "how_to_get": "确认是否需要 API key、JWT、OAuth 或内网网关鉴权。"
+    },
+    {
+      "key": "OTEL_EXPORTER",
+      "status": "未指定",
+      "how_to_get": "如果执行 T3，需要指定 collector/exporter（console、otlp、vendor APM）。"
+    },
+    {
+      "key": "PROM_ENDPOINT",
+      "status": "未指定",
+      "how_to_get": "如果执行 T4，需要确认 Prometheus 抓取路径、job 名称和告警路由。"
+    }
+  ]
+}

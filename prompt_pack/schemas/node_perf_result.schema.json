@@ -1,0 +1,9 @@
+{
+  "type": "object",
+  "required": ["changed_files", "artifacts", "validation"],
+  "properties": {
+    "changed_files": { "type": "array", "items": { "type": "string" } },
+    "artifacts": { "type": "array", "items": { "type": "string" } },
+    "validation": { "type": "array", "items": { "type": "string" } }
+  }
+}

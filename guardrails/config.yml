@@ -1,0 +1,30 @@
+mode: minimal_blocking
+feature_flag: ENABLE_GUARDRAILS
+
+input_rails:
+  - reason_code: external_instruction
+    action: warn
+  - reason_code: prompt_exfiltration
+    action: block
+
+retrieval_rails:
+  - reason_code: external_instruction
+    action: block
+  - reason_code: prompt_exfiltration
+    action: block
+
+output_rails:
+  - reason_code: api_key_like
+    action: redact
+  - reason_code: bearer_token
+    action: redact
+  - reason_code: password_assignment
+    action: redact
+
+execution_rails:
+  allowed_search_tools:
+    - company_profile_searcher
+    - jd_searcher
+    - interview_searcher
+    - salary_culture_searcher
+    - tech_stack_searcher

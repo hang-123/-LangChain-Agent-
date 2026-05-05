@@ -1,0 +1,9 @@
+{
+  "type": "object",
+  "required": ["dataset_path", "guardrails_mode", "output_report"],
+  "properties": {
+    "dataset_path": { "type": "string" },
+    "guardrails_mode": { "type": "string" },
+    "output_report": { "type": "string" }
+  }
+}

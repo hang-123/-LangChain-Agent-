@@ -1,0 +1,48 @@
+name: main-eval-baseline
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  baseline-smoke:
+    runs-on: ubuntu-latest
+    env:
+      QUERY_ENGINE_API_KEY: ${{ secrets.QUERY_ENGINE_API_KEY }}
+      QUERY_ENGINE_BASE_URL: ${{ secrets.QUERY_ENGINE_BASE_URL }}
+      QUERY_ENGINE_MODEL_NAME: ${{ secrets.QUERY_ENGINE_MODEL_NAME || 'qwen-plus' }}
+      TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
+      ENABLE_NODE_PERF: "1"
+      PYTHONUTF8: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-minimal.txt
+
+      - name: Run baseline smoke eval
+        run: |
+          python scripts/run_ci_eval.py \
+            --case-id general_bytedance_backend_intern \
+            --case-id tech_meituan_backend \
+            --output-json logs/ci/baseline_eval_results.json \
+            --output-md logs/ci/baseline_eval_report.md \
+            --min-score 75
+
+      - name: Upload baseline artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: main-eval-baseline
+          path: |
+            logs/ci/baseline_eval_results.json
+            logs/ci/baseline_eval_report.md

@@ -1,0 +1,9 @@
+{
+  "repo_root": "{{REPO_ROOT}}",
+  "output_dir": "prompt_pack/vars",
+  "questions": [
+    "部署环境",
+    "主模型与审查模型",
+    "预算与 owner"
+  ]
+}
