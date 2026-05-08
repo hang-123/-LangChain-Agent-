@@ -85,6 +85,8 @@ class EvalPolicy(BaseModel):
     min_attribution_score: int = Field(default=60, ge=0, le=100)
     min_insight_score: int = Field(default=60, ge=0, le=100)
     min_report_compliance_score: int = Field(default=70, ge=0, le=100)
+    min_matching_score: int = Field(default=65, ge=0, le=100)
+    min_resume_score: int = Field(default=70, ge=0, le=100)
 
 
 class PersistencePolicy(BaseModel):

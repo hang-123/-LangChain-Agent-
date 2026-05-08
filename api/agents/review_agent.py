@@ -1,3 +1,5 @@
+# DEPRECATED (Phase 2): absorbed into api/core/gate.py + api/agents/report_agent.py self-review.
+# Retained for backward compatibility. Do not add new features here.
 from __future__ import annotations
 
 import json

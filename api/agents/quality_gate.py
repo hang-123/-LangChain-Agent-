@@ -1,3 +1,5 @@
+# DEPRECATED (Phase 2): absorbed into api/core/gate.py.
+# Retained for backward compatibility. Do not add new features here.
 from __future__ import annotations
 
 from typing import Any

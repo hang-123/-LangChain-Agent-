@@ -131,6 +131,118 @@ def _score_report_compliance(case: ResearchCase, final_state: dict[str, Any]) ->
     return max(0, score), failures
 
 
+def _score_matching(case: ResearchCase, final_state: dict[str, Any]) -> tuple[int, list[str]]:
+    ground_truth = dict(case.match_ground_truth or {})
+    if not ground_truth:
+        return 100, []
+    match_assessment = dict(final_state.get("match_assessment") or {})
+    if not match_assessment:
+        return 0, ["match_assessment missing from state"]
+
+    failures: list[str] = []
+    score = 100
+
+    # score_alignment: overall_score vs ground truth minimum
+    overall_score = int(match_assessment.get("overall_score") or 0)
+    min_overall = int(ground_truth.get("min_overall_score") or 0)
+    if overall_score < min_overall:
+        penalty = min(40, (min_overall - overall_score) * 2)
+        failures.append(f"score_alignment: overall_score {overall_score} < min {min_overall}")
+        score -= penalty
+
+    # recommendation_accuracy (P0 if mismatch)
+    actual_rec = str(match_assessment.get("recommendation") or "")
+    expected_rec = str(ground_truth.get("expected_recommendation") or "")
+    if expected_rec and actual_rec != expected_rec:
+        failures.append(f"recommendation_accuracy: expected {expected_rec}, got {actual_rec}")
+        score -= 35
+
+    # must_have_recall: strengths reflecting must-have coverage
+    min_must_have_ratio = float(ground_truth.get("min_must_have_match_ratio") or 0)
+    strengths = list(match_assessment.get("strengths") or [])
+    gaps = list(match_assessment.get("gaps") or [])
+    total_req = len(strengths) + len(gaps)
+    strength_ratio = len(strengths) / total_req if total_req > 0 else 0.0
+    if strength_ratio < min_must_have_ratio:
+        failures.append(f"must_have_recall: strength_ratio {strength_ratio:.2f} < min {min_must_have_ratio}")
+        score -= 25
+
+    # evidence_precision: strengths/gaps with evidence_refs
+    min_strengths = int(ground_truth.get("min_strengths") or 0)
+    max_gaps = int(ground_truth.get("max_gaps") or 99)
+    if len(strengths) < min_strengths:
+        failures.append(f"evidence_precision: strengths count {len(strengths)} < min {min_strengths}")
+        score -= 15
+    if len(gaps) > max_gaps:
+        failures.append(f"evidence_precision: gaps count {len(gaps)} > max {max_gaps}")
+        score -= 15
+
+    return max(0, score), failures
+
+
+def _score_resume(case: ResearchCase, final_state: dict[str, Any]) -> tuple[int, list[str]]:
+    ground_truth = dict(case.resume_ground_truth or {})
+    if not ground_truth:
+        return 100, []
+    resume_version = dict(final_state.get("resume_version") or {})
+    fact_check_report = dict(final_state.get("fact_check_report") or {})
+    tailor_plan = dict(final_state.get("tailor_plan") or {})
+    if not resume_version and not tailor_plan:
+        return 0, ["resume_version and tailor_plan missing from state"]
+
+    failures: list[str] = []
+    score = 100
+
+    # fact_faithfulness (P0: any fabrication → 0)
+    fact_check_status = str(fact_check_report.get("status") or resume_version.get("fact_check_status") or "unknown")
+    forbidden_phrases = list(ground_truth.get("forbidden_phrases") or [])
+    resume_text = " ".join([
+        str(resume_version.get("summary_text") or ""),
+        " ".join(str(b) for b in resume_version.get("project_bullets") or []),
+        " ".join(str(k) for k in resume_version.get("keyword_insertions") or []),
+    ]).lower()
+
+    fabrication_hits: list[str] = []
+    for phrase in forbidden_phrases:
+        if phrase.lower() in resume_text:
+            fabrication_hits.append(phrase)
+
+    if fact_check_status == "rejected" or fabrication_hits:
+        failures.append(f"fact_faithfulness P0: status={fact_check_status}, fabrications={fabrication_hits}")
+        return 0, failures
+
+    if fact_check_status == "downgraded":
+        failures.append(f"fact_faithfulness: status downgraded")
+        score -= 25
+    elif fact_check_status != "passed":
+        failures.append(f"fact_faithfulness: unknown status {fact_check_status}")
+        score -= 10
+
+    # keyword_coverage
+    keyword_coverage = dict(tailor_plan.get("keyword_coverage") or {})
+    covered_keywords = list(keyword_coverage.get("covered") or [])
+    min_keyword_covered = int(ground_truth.get("min_keyword_covered") or 0)
+    if len(covered_keywords) < min_keyword_covered:
+        failures.append(f"keyword_coverage: covered {len(covered_keywords)} < min {min_keyword_covered}")
+        score -= 20
+
+    require_keywords = list(ground_truth.get("require_keywords") or [])
+    resume_full = " ".join([resume_text] + covered_keywords).lower()
+    missing_required = [kw for kw in require_keywords if kw.lower() not in resume_full]
+    if missing_required:
+        failures.append(f"keyword_coverage: missing required keywords {missing_required}")
+        score -= 15
+
+    # job_relevance: has section_actions
+    section_actions = list(tailor_plan.get("section_actions") or [])
+    min_section_actions = int(ground_truth.get("min_section_actions") or 0)
+    if len(section_actions) < min_section_actions:
+        failures.append(f"job_relevance: section_actions {len(section_actions)} < min {min_section_actions}")
+        score -= 15
+
+    return max(0, score), failures
+
+
 def score_case_result(case: ResearchCase, final_state: dict[str, Any]) -> CaseEvaluation:
     policy = coerce_policy(final_state.get("policy"))
     eval_policy = policy.eval_policy
@@ -144,7 +256,9 @@ def score_case_result(case: ResearchCase, final_state: dict[str, Any]) -> CaseEv
     attribution_score, attribution_failures = _score_attribution(final_state)
     insight_score, insight_failures = _score_insight(final_state)
     report_score, report_failures = _score_report_compliance(case, final_state)
-    failures.extend(retrieval_failures + attribution_failures + insight_failures + report_failures)
+    matching_score, matching_failures = _score_matching(case, final_state)
+    resume_score, resume_failures = _score_resume(case, final_state)
+    failures.extend(retrieval_failures + attribution_failures + insight_failures + report_failures + matching_failures + resume_failures)
 
     quality_mode = str(final_state.get("quality_mode") or "normal")
     if not case.allow_conservative and quality_mode == "conservative":
@@ -155,6 +269,8 @@ def score_case_result(case: ResearchCase, final_state: dict[str, Any]) -> CaseEv
         attribution=attribution_score,
         insight=insight_score,
         report_compliance=report_score,
+        matching=matching_score,
+        resume=resume_score,
     )
 
     thresholds_failed = any(
@@ -163,11 +279,13 @@ def score_case_result(case: ResearchCase, final_state: dict[str, Any]) -> CaseEv
             attribution_score < eval_policy.min_attribution_score,
             insight_score < eval_policy.min_insight_score,
             report_score < eval_policy.min_report_compliance_score,
+            matching_score < eval_policy.min_matching_score,
+            resume_score < eval_policy.min_resume_score,
         ]
     )
 
     average_score = round(
-        (retrieval_score + attribution_score + insight_score + report_score) / 4,
+        (retrieval_score + attribution_score + insight_score + report_score + matching_score + resume_score) / 6,
     )
     return CaseEvaluation(
         case_id=case.case_id,

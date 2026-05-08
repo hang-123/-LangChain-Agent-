@@ -100,6 +100,10 @@ def test_run_research_returns_job_intelligence_artifacts(monkeypatch, tmp_path):
     assert payload["job_snapshot"]["job_snapshot_id"] == "js::job::字节跳动::后端开发实习"
     assert payload["external_evidence_pack"]["evidence_pack_id"] == "jep::job::字节跳动::后端开发实习"
     assert payload["match_assessment"]["assessment_id"] == "match::cand_001::job::字节跳动::后端开发实习"
+    assert payload["workflow_state"]["artifacts"]["job"]["job_snapshot"]["job_snapshot_id"] == (
+        "js::job::字节跳动::后端开发实习"
+    )
+    assert payload["workflow_state"]["control"]["root_cause"] == "retrieval"
     assert payload["tailor_plan"]["tailor_plan_id"].startswith("rtp::")
     assert payload["resume_version"]["fact_check_status"] == "passed"
     assert payload["fact_check_report"]["status"] == "passed"
@@ -155,6 +159,7 @@ def test_stream_research_accepts_structured_resume_tailor_payload(monkeypatch, t
             graph,
             query,
             *,
+            user_id="",
             candidate_profile=None,
             resume_evidence=None,
             job_posting=None,
@@ -163,6 +168,7 @@ def test_stream_research_accepts_structured_resume_tailor_payload(monkeypatch, t
         ):
             captured["graph"] = graph
             captured["query"] = query
+            captured["user_id"] = user_id
             captured["candidate_profile"] = candidate_profile
             captured["resume_evidence"] = resume_evidence
             captured["job_posting"] = job_posting
@@ -185,6 +191,8 @@ def test_stream_research_accepts_structured_resume_tailor_payload(monkeypatch, t
                 "node": "System",
                 "timestamp": "2026-04-19T10:00:01Z",
                 "report_markdown": "# ok",
+                "memory_used": bool(captured["user_id"]),
+                "conversation_summary": "上一轮摘要" if captured["user_id"] else "",
             }
 
     monkeypatch.setattr("api.main.ResearchExecutionSession", FakeStructuredSession)
@@ -197,6 +205,7 @@ def test_stream_research_accepts_structured_resume_tailor_payload(monkeypatch, t
         "/api/research/stream",
         json={
             "query": "我有一份简历和目标岗位，请按 wf_resume_tailor_v2 输出改写计划。",
+            "user_id": "user_001",
             "candidate_profile": {"candidate_id": "cand_001", "skills": ["Redis"]},
             "resume_evidence": [
                 {
@@ -212,6 +221,7 @@ def test_stream_research_accepts_structured_resume_tailor_payload(monkeypatch, t
 
     assert response.status_code == 200
     assert captured["query"] == "我有一份简历和目标岗位，请按 wf_resume_tailor_v2 输出改写计划。"
+    assert captured["user_id"] == "user_001"
     assert captured["candidate_profile"] == {"candidate_id": "cand_001", "skills": ["Redis"]}
     assert captured["resume_evidence"] == [
         {
@@ -226,5 +236,24 @@ def test_stream_research_accepts_structured_resume_tailor_payload(monkeypatch, t
         "candidate_id": "cand_001",
         "job_id": "job_001",
     }
+
+    get_settings.cache_clear()
+
+
+def test_run_research_accepts_user_id_and_returns_memory_fields(monkeypatch, tmp_path):
+    monkeypatch.setattr("api.main._graph", FakeRunGraph())
+    monkeypatch.setattr("api.core.executor.build_repository", lambda policy: FileHarnessRepository(tmp_path / "harness"))
+    get_settings.cache_clear()
+
+    client = TestClient(app)
+    response = client.post(
+        "/api/research/run",
+        json={"query": "继续分析字节后端实习", "user_id": "user_001"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert "memory_used" in payload
+    assert "conversation_summary" in payload
 
     get_settings.cache_clear()

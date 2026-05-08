@@ -29,3 +29,21 @@
 - 关键词命中但实际经验很浅
 - 项目经历强，但业务域不匹配
 - 地点/工作方式约束冲突
+
+## 7. 实现状态（2026-05-07）
+
+**已实现**:
+- `api/evals/harness.py` — `_score_matching()` 函数，覆盖 4 个评分维度：
+  - `score_alignment`: overall_score vs ground_truth min_overall_score
+  - `must_have_recall`: strengths 比例 vs min_must_have_match_ratio
+  - `evidence_precision`: strengths 数量 vs min_strengths, gaps 数量 vs max_gaps
+  - `recommendation_accuracy`: 建议结论匹配（P0 级失败扣 35 分）
+- `api/core/contracts.py` — `ResearchCase` 新增 `candidate_profile`, `resume_evidence`, `match_ground_truth` 字段；`NodeScorecard` 新增 `matching` 字段
+- `api/core/policies.py` — `EvalPolicy` 新增 `min_matching_score` 阈值（默认 65）
+- `api/evals/research_cases.json` — 新增 3 个 matching eval cases（`match_strong_fit`, `match_skill_gap`, `match_missing_must_have`）
+- `tests/test_matching_scorer.py` — 6 个单元测试（pass, penalty, missing, no-ground-truth, partial, full-integration）
+- `api/main.py` — `run_research_case` 端点传递 `candidate_profile` 和 `resume_evidence` 给 session
+
+**待实现（Phase 2/后续）**:
+- 大规模人工标注样本（当前为小型构造样本）
+- 与 CI/CD pipeline 集成自动运行

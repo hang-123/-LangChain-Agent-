@@ -18,18 +18,27 @@ from api.core.metrics import render_metrics_response
 from api.core.otel import initialize_otel, start_span
 from api.core.persistence import build_repository
 from api.core.policy_loader import load_policy
+from api.core.workflow_state import get_workflow_state_view
 from api.evals.harness import CaseEvaluation, EvalSuiteSummary, ResearchCase, load_research_cases, score_case_result, summarize_eval_suite
 
 
 class ResearchRunRequest(BaseModel):
     query: str = Field(..., min_length=2, max_length=600, description="Company + role + research goal.")
+    user_id: str = Field(default="")
     candidate_profile: dict[str, Any] = Field(default_factory=dict)
     resume_evidence: list[dict[str, Any]] = Field(default_factory=list)
     job_posting: dict[str, Any] = Field(default_factory=dict)
     match_assessment: dict[str, Any] = Field(default_factory=dict)
+    # Phase 2 optional fields
+    phase: str = Field(default="1", description="Phase version: '1' (legacy) or '2' (3A+7T+1G)")
+    raw_jd_text: str = Field(default="", description="Raw JD text for JobAnalyzer")
+    resume_file: dict[str, Any] | None = Field(default=None, description="Resume file data for ResumeParser")
+    offer_list: list[dict[str, Any]] = Field(default_factory=list, description="Offer list for OfferEvaluator")
 
     @model_validator(mode="after")
     def _validate_tailoring_payload(self) -> "ResearchRunRequest":
+        if self.phase == "2":
+            return self  # Phase 2 has relaxed validation
         has_candidate_profile = bool(self.candidate_profile)
         has_resume_evidence = bool(self.resume_evidence)
         if has_candidate_profile != has_resume_evidence:
@@ -71,6 +80,17 @@ class ResearchRunResponse(BaseModel):
     quality_mode: str = "normal"
     warning_message: str = ""
     root_cause: str = ""
+    workflow_state: dict[str, Any] = Field(default_factory=dict)
+    memory_used: bool = False
+    conversation_summary: str = ""
+    # Phase 2 fields
+    phase: str = Field(default="1")
+    archetype_detection: dict[str, Any] | None = None
+    legitimacy_assessment: dict[str, Any] | None = None
+    offer_comparison: dict[str, Any] | None = None
+    interview_prep_pack: dict[str, Any] | None = None
+    verification_report: dict[str, Any] | None = None
+    profile_completeness: float | None = None
 
 
 class ResearchCaseRunRequest(BaseModel):
@@ -94,9 +114,21 @@ app.add_middleware(
     allow_headers=["*"],
 )
 _graph = build_career_research_graph()
+_phase2_graph = None  # Lazy-init for Phase 2 graph
 _policy = load_policy()
 _repository = build_repository(_policy)
 initialize_otel()
+
+
+def _get_graph(phase: str = "1") -> Any:
+    """Get the appropriate graph for the requested phase."""
+    if phase == "2":
+        global _phase2_graph
+        if _phase2_graph is None:
+            from api.core.graph import build_phase2_graph
+            _phase2_graph = build_phase2_graph()
+        return _phase2_graph
+    return _graph
 
 
 def _log_exception(context: str, exc: Exception) -> str:
@@ -137,9 +169,11 @@ async def run_research(payload: ResearchRunRequest) -> ResearchRunResponse:
 
     with start_span("http.research.run", {"http.route": "/api/research/run", "research.query": query}):
         try:
+            phase_graph = _get_graph(payload.phase)
             session = ResearchExecutionSession(
-                _graph,
+                phase_graph,
                 query,
+                user_id=str(payload.user_id or ""),
                 candidate_profile=dict(payload.candidate_profile or {}),
                 resume_evidence=list(payload.resume_evidence or []),
                 job_posting=dict(payload.job_posting or {}),
@@ -158,6 +192,7 @@ async def run_research(payload: ResearchRunRequest) -> ResearchRunResponse:
     report_content = str(final_state.get("report_content") or "") if isinstance(final_state, dict) else ""
     insights = dict(final_state.get("insights") or {}) if isinstance(final_state, dict) else {}
     retry_count = int(final_state.get("retry_count") or 0) if isinstance(final_state, dict) else 0
+    is_phase2 = payload.phase == "2"
     return ResearchRunResponse(
         run_id=str(final_state.get("run_id") or ""),
         report_markdown=report_content,
@@ -176,6 +211,16 @@ async def run_research(payload: ResearchRunRequest) -> ResearchRunResponse:
         quality_mode=str(final_state.get("quality_mode") or "normal") if isinstance(final_state, dict) else "normal",
         warning_message=str(final_state.get("warning_message") or "") if isinstance(final_state, dict) else "",
         root_cause=str(final_state.get("root_cause") or "") if isinstance(final_state, dict) else "",
+        workflow_state=get_workflow_state_view(final_state) if isinstance(final_state, dict) else {},
+        memory_used=bool(final_state.get("memory_summary")) if isinstance(final_state, dict) else False,
+        conversation_summary=str(final_state.get("memory_summary") or "") if isinstance(final_state, dict) else "",
+        phase=payload.phase,
+        archetype_detection=dict(final_state.get("archetype_detection") or {}) if is_phase2 else None,
+        legitimacy_assessment=dict(final_state.get("legitimacy_assessment") or {}) if is_phase2 else None,
+        offer_comparison=dict(final_state.get("offer_comparison") or {}) if is_phase2 else None,
+        interview_prep_pack=dict(final_state.get("interview_prep_pack") or {}) if is_phase2 else None,
+        verification_report=dict(final_state.get("verification_report") or {}) if is_phase2 else None,
+        profile_completeness=float(final_state.get("profile_completeness", 0)) if is_phase2 else None,
     )
 
 
@@ -197,7 +242,14 @@ async def run_research_case(payload: ResearchCaseRunRequest) -> ResearchRunRespo
         "http.research.case_run",
         {"http.route": "/api/research/cases/run", "research.case_id": payload.case_id},
     ):
-        session = ResearchExecutionSession(_graph, target.query, research_case=target.model_dump())
+        session = ResearchExecutionSession(
+            _graph,
+            target.query,
+            research_case=target.model_dump(),
+            candidate_profile=target.candidate_profile or {},
+            resume_evidence=target.resume_evidence or [],
+            user_id=str((target.candidate_profile or {}).get("candidate_id") or "").strip(),
+        )
         async for _ in session.stream_events():
             pass
         final_state = session.state
@@ -219,6 +271,9 @@ async def run_research_case(payload: ResearchCaseRunRequest) -> ResearchRunRespo
         quality_mode=str(final_state.get("quality_mode") or "normal"),
         warning_message=str(final_state.get("warning_message") or ""),
         root_cause=str(final_state.get("root_cause") or ""),
+        workflow_state=get_workflow_state_view(final_state),
+        memory_used=bool(final_state.get("memory_summary")),
+        conversation_summary=str(final_state.get("memory_summary") or ""),
     )
 
 
@@ -236,7 +291,13 @@ async def run_eval_suite(payload: EvalRunRequest) -> EvalSuiteSummary:
         results: list[CaseEvaluation] = []
         for case in selected:
             _repository.save_research_case(case)
-            session = ResearchExecutionSession(_graph, case.query, research_case=case.model_dump())
+            session = ResearchExecutionSession(
+                _graph,
+                case.query,
+                research_case=case.model_dump(),
+                candidate_profile=case.candidate_profile or {},
+                resume_evidence=case.resume_evidence or [],
+            )
             async for _ in session.stream_events():
                 pass
             result = score_case_result(case, session.state)
@@ -252,9 +313,11 @@ async def _stream_research_response(payload: ResearchRunRequest) -> StreamingRes
 
     async def event_generator() -> AsyncIterator[str]:
         with start_span("http.research.stream", {"http.route": "/api/research/stream", "research.query": clean_query}):
+            phase_graph = _get_graph(payload.phase)
             session = ResearchExecutionSession(
-                _graph,
+                phase_graph,
                 clean_query,
+                user_id=str(payload.user_id or ""),
                 candidate_profile=dict(payload.candidate_profile or {}),
                 resume_evidence=list(payload.resume_evidence or []),
                 job_posting=dict(payload.job_posting or {}),

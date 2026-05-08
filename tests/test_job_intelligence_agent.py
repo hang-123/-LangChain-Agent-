@@ -131,6 +131,7 @@ async def test_query_agent_node_returns_job_intelligence_artifacts(monkeypatch):
         "resume_evidence": [
             {
                 "evidence_id": "evi_001",
+                "section": "projects",
                 "text": "在项目中使用 Redis 和 MySQL 处理高并发读写。",
                 "normalized_skills": ["Redis", "MySQL"],
             }

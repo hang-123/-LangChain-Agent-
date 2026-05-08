@@ -1,3 +1,5 @@
+# DEPRECATED (Phase 2): absorbed into api/agents/supervisor.py.
+# Retained for backward compatibility only. Do not add new features here.
 from __future__ import annotations
 
 from typing import Any

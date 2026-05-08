@@ -1,42 +1,99 @@
-# Tool: Resume Parser 规范
+# ResumeParser Tool 规范（阶段二）
 
 ## 1. 目标
-说明：该工具属于阶段二重点补齐能力。阶段一允许主工作流直接接收外部整理好的 `CandidateProfile` 和 `ResumeEvidence`。
+把原始简历文件（PDF/DOCX/TXT/Markdown）或文本解析为 `CandidateProfile` 基础字段和 `ResumeEvidence`。
 
-把原始简历文件或文本解析为 `ResumeAsset`、`CandidateProfile` 基础字段和 `ResumeEvidence`。
+阶段二将 ProfilePipeline（11-profile-agent.md）的三个子模块——ResumeParser、ProfileNormalizer、ProfileValidator——合并为一个统一的 ResumeParser Tool。单次 LLM 调用完成文本抽取 + 标准化 + 验证。
 
-## 2. 输入契约
+## 2. 职责
+- 解析简历文件 → 提取原始文本
+- LLM 抽取：教育、经历、技能、项目、证书
+- 标准化：技能名、学历、职业经历
+- 验证：完整度检查、警告标注
+
+## 3. 输入
 ```json
 {
   "source_type": "pdf|docx|txt|markdown",
-  "source_name": "string",
-  "content_bytes": "optional",
-  "raw_text": "optional"
+  "source_name": "张三-简历.pdf",
+  "content_bytes": "optional (base64)",
+  "raw_text": "optional (如果已有文本)"
 }
 ```
 
-## 3. 输出契约
+## 4. 输出
 ```json
 {
-  "resume_asset": {},
-  "draft_candidate_profile": {},
+  "resume_asset": {
+    "resume_id": "resume_raw_001",
+    "candidate_id": "cand_001",
+    "source_type": "pdf",
+    "source_name": "张三-简历.pdf",
+    "raw_text": "string",
+    "language": "zh-CN",
+    "parsed_at": "2026-05-08T10:00:00Z",
+    "parser_version": "resume-parser-v2"
+  },
+  "candidate_profile": {},
   "resume_evidence": [],
-  "parse_warnings": []
+  "profile_completeness": 0.82,
+  "profile_gaps": ["缺少明确的求职城市偏好"],
+  "warnings": []
 }
 ```
 
-## 4. 能力边界
-- 负责文本抽取与结构初步拆分。
-- 可以做技能标准化。
-- 不负责匹配评分和简历改写。
-- 阶段一不要求它成为所有 workflow 的唯一入口。
+## 5. 执行流程
 
-## 5. 错误处理
-- 文件损坏：返回 `parse_error=file_unreadable`
-- 文本过少：返回 `parse_warning=insufficient_text`
-- 时间范围冲突：保留原文并标红冲突
+### Step 1: 文本提取（确定性）
+- PDF/DOCX → 提取纯文本（使用 pypdf / python-docx 或已有库）
+- TXT/Markdown → 直接读取
+- 文本过短（<100字符） → 返回 insufficient_text 警告
 
-## 6. 质量要求
-- 解析结果应尽量保留原始段落顺序。
-- 对无法确定的字段允许为空，不允许乱填。
-- 输出必须包含 `parser_version`。
+### Step 2: LLM 结构化抽取（单次 LLM 调用）
+- System prompt：抽取规则 + 质量要求 + 禁止事项
+- 输入：原始简历文本
+- 输出：结构化 CandidateProfile + ResumeEvidence 列表
+
+### Step 3: 后处理标准化（确定性）
+- ProfileNormalizer：技能名标准化（如"java" → "Java"）
+- 时间范围检查：start_date <= end_date
+- 完整度计算：必填字段（name, skills, education 中的至少一项）的覆盖率
+
+### Step 4: 验证（确定性）
+- 完整度 >= 0.5 → 正常输出
+- 完整度 < 0.5 → 标记 warnings
+- 约束检查：技能名不能从课程名自动提升为"熟练掌握"
+- 保留未解析原文片段供人工回看
+
+## 6. 核心规则
+- 只抽取简历中明确存在的信息
+- 对技能标准化，但保留原始文本
+- 项目与实习经历都拆成独立证据项
+- 指标、成果、职责分开抽取，避免混写
+
+## 7. 输出质量要求
+- 每条 ResumeEvidence 必须带 section 与原文片段
+- 若技能只是课程名或工具名，不能自动提升为熟练掌握
+- years_of_experience 优先基于时间范围估算，估算失败时允许为空
+
+## 8. 失败与兜底
+- 解析不全时，保留未解析原文片段供人工回看
+- 如果简历内容过短，明确标记 profile_completeness < 0.5
+- 如果当前工作流已拿到可信的结构化 candidate_profile + resume_evidence，可跳过重复解析
+
+## 9. 禁止事项
+- 不得补充未写明的项目背景
+- 不得把学校课程直接认定为工作经验
+- 不得自行判断"擅长"或"精通"
+
+## 10. 实现文件
+- `api/tools/resume_parser.py` — ResumeParser 主逻辑（LLM抽取+标准化+验证）
+- （原 ProfilePipeline 的 ProfileNormalizer / ProfileValidator 逻辑吸收进此文件）
+
+## 11. 与阶段一的差异
+| 维度 | 阶段一 | 阶段二 |
+|------|--------|--------|
+| 组件 | ProfilePipeline(ResumeParser+Normalizer+Validator, 3个子模块) | ResumeParser(统一Tool) |
+| 状态 | 阶段二规划 | 阶段二实现 |
+| LLM | 未定义 | 1次（文本抽取） |
+| 调用方式 | 独立工作流入口 | wf_profile_bootstrap 的唯一 Tool |

@@ -25,5 +25,149 @@
     "company_assertions": ["腾讯", "文化"],
     "allow_conservative": true,
     "risk_tags": ["salary_signal", "culture_fit"]
+  },
+  {
+    "case_id": "match_strong_fit",
+    "query": "评估候选人张三与字节跳动后端开发实习的匹配度",
+    "expected_intent": "general",
+    "minimum_evidence_count": 3,
+    "company_assertions": ["字节", "后端"],
+    "allow_conservative": true,
+    "risk_tags": [],
+    "candidate_profile": {
+      "candidate_id": "cand_zhangsan",
+      "skills": ["Java", "Spring Boot", "MySQL", "Redis", "Kafka", "微服务"],
+      "years_of_experience": 1.5,
+      "education": "硕士",
+      "target_roles": ["后端开发", "Java开发"],
+      "location_preferences": ["北京"]
+    },
+    "resume_evidence": [
+      {
+        "evidence_id": "ev_001",
+        "section": "projects",
+        "text": "使用 Spring Boot 开发电商订单系统，日均处理10万订单，优化查询性能",
+        "normalized_skills": ["Java", "Spring Boot", "MySQL", "Redis"]
+      },
+      {
+        "evidence_id": "ev_002",
+        "section": "work_experience",
+        "text": "在ABC公司实习期间负责微服务化改造，拆分单体应用为6个微服务",
+        "normalized_skills": ["Java", "微服务", "Spring Boot"]
+      }
+    ],
+    "match_ground_truth": {
+      "expected_recommendation": "strong_recommend",
+      "min_overall_score": 72,
+      "min_must_have_match_ratio": 0.4,
+      "min_strengths": 1,
+      "max_gaps": 4
+    },
+    "resume_ground_truth": {}
+  },
+  {
+    "case_id": "match_skill_gap",
+    "query": "评估候选人李四与美团前端开发实习的匹配度",
+    "expected_intent": "tech_coding",
+    "minimum_evidence_count": 3,
+    "company_assertions": ["美团", "前端"],
+    "allow_conservative": true,
+    "risk_tags": ["skill_gap"],
+    "candidate_profile": {
+      "candidate_id": "cand_lisi",
+      "skills": ["HTML", "CSS", "JavaScript"],
+      "years_of_experience": 0.5,
+      "education": "本科",
+      "target_roles": ["前端开发"],
+      "location_preferences": ["北京"]
+    },
+    "resume_evidence": [
+      {
+        "evidence_id": "ev_101",
+        "section": "projects",
+        "text": "个人项目：使用 HTML/CSS/JS 搭建了简单的个人博客页面",
+        "normalized_skills": ["HTML", "CSS", "JavaScript"]
+      }
+    ],
+    "match_ground_truth": {
+      "expected_recommendation": "neutral",
+      "min_overall_score": 40,
+      "min_must_have_match_ratio": 0.3,
+      "min_strengths": 0,
+      "max_gaps": 6
+    },
+    "resume_ground_truth": {}
+  },
+  {
+    "case_id": "match_missing_must_have",
+    "query": "评估候选人王五与腾讯Go后端开发社招的匹配度",
+    "expected_intent": "general",
+    "minimum_evidence_count": 3,
+    "company_assertions": ["腾讯", "Go"],
+    "allow_conservative": true,
+    "risk_tags": ["missing_must_have"],
+    "candidate_profile": {
+      "candidate_id": "cand_wangwu",
+      "skills": ["Python", "Django", "PostgreSQL"],
+      "years_of_experience": 2,
+      "education": "本科",
+      "target_roles": ["后端开发", "Python开发"],
+      "location_preferences": ["深圳"]
+    },
+    "resume_evidence": [
+      {
+        "evidence_id": "ev_201",
+        "section": "work_experience",
+        "text": "在某创业公司用 Python/Django 搭建后端服务，管理用户数据和支付流程",
+        "normalized_skills": ["Python", "Django", "PostgreSQL"]
+      }
+    ],
+    "match_ground_truth": {
+      "expected_recommendation": "not_recommended",
+      "min_overall_score": 35,
+      "min_must_have_match_ratio": 0.2,
+      "min_strengths": 0,
+      "max_gaps": 6
+    },
+    "resume_ground_truth": {}
+  },
+  {
+    "case_id": "resume_tailor_factual",
+    "query": "为候选人张三定制面向字节跳动后端开发实习的简历",
+    "expected_intent": "general",
+    "minimum_evidence_count": 3,
+    "company_assertions": ["字节", "后端"],
+    "allow_conservative": true,
+    "risk_tags": [],
+    "candidate_profile": {
+      "candidate_id": "cand_zhangsan",
+      "skills": ["Java", "Spring Boot", "MySQL", "Redis", "Kafka", "微服务"],
+      "years_of_experience": 1.5,
+      "education": "硕士",
+      "target_roles": ["后端开发", "Java开发"],
+      "location_preferences": ["北京"]
+    },
+    "resume_evidence": [
+      {
+        "evidence_id": "ev_001",
+        "section": "projects",
+        "text": "使用 Spring Boot 开发电商订单系统，日均处理10万订单，优化查询性能",
+        "normalized_skills": ["Java", "Spring Boot", "MySQL", "Redis"]
+      },
+      {
+        "evidence_id": "ev_002",
+        "section": "work_experience",
+        "text": "在ABC公司实习期间负责微服务化改造，拆分单体应用为6个微服务",
+        "normalized_skills": ["Java", "微服务", "Spring Boot"]
+      }
+    ],
+    "match_ground_truth": {},
+    "resume_ground_truth": {
+      "fact_check_status": "passed",
+      "min_keyword_covered": 1,
+      "min_section_actions": 1,
+      "forbidden_phrases": ["精通", "负责过1000万DAU项目"],
+      "require_keywords": ["后端开发", "Java"]
+    }
   }
 ]

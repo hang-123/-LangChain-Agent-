@@ -1,3 +1,5 @@
+# DEPRECATED (Phase 2): absorbed into api/agents/analysis_agent.py.
+# Retained for backward compatibility. Do not add new features here.
 from __future__ import annotations
 
 import re
@@ -592,40 +594,40 @@ async def query_agent_node(state: dict[str, Any]) -> dict[str, Any]:
     new_insights["root_cause_hint"] = root_cause_hint
     new_insights["fallback_flags"] = fallback_flags
 
-    job_intelligence_update = await job_intelligence_agent_node(
-        {
-            "query_profile": profile,
-            "evidence_items": evidence_items,
-            "insights": new_insights,
-            "raw_jd_text": state.get("raw_jd_text"),
-            "context": context,
-        }
-    )
-    matching_update = await matching_agent_node(
-        {
-            "candidate_profile": state.get("candidate_profile"),
-            "resume_evidence": state.get("resume_evidence"),
-            "job_snapshot": job_intelligence_update.get("job_snapshot"),
-        }
-    )
-    tailoring_update = build_resume_tailoring_artifacts(
-        candidate_profile=dict(state.get("candidate_profile") or {}),
-        resume_evidence=list(state.get("resume_evidence") or []),
-        job_snapshot=job_intelligence_update.get("job_snapshot") or {},
-        match_assessment=matching_update.get("match_assessment") or {},
-    )
     gap_text = "；".join((parsed.coverage_gaps or [])[:2]) if parsed.coverage_gaps else "证据覆盖较完整"
-    result = {
+    result: dict[str, Any] = {
         "insights": new_insights,
         "status": f"🧠 已完成 claim 归因与差异摘要提炼，当前缺口：{gap_text}。",
     }
-    result.update(job_intelligence_update)
+
+    job_intelligence_update = await job_intelligence_agent_node(
+        {
+            **state,
+            "insights": new_insights,
+            "evidence_items": evidence_items,
+        }
+    )
+    result["external_evidence_pack"] = job_intelligence_update.get("external_evidence_pack") or {}
+    result["job_snapshot"] = job_intelligence_update.get("job_snapshot") or {}
+
+    matching_update = await matching_agent_node(
+        {
+            **state,
+            "job_snapshot": result["job_snapshot"],
+        }
+    )
     result["match_assessment"] = matching_update.get("match_assessment") or {}
+
+    try:
+        tailoring_update = build_resume_tailoring_artifacts(
+            candidate_profile=dict(state.get("candidate_profile") or {}),
+            resume_evidence=list(state.get("resume_evidence") or []),
+            job_snapshot=dict(result.get("job_snapshot") or {}),
+            match_assessment=dict(result.get("match_assessment") or {}),
+        )
+    except ValueError:
+        tailoring_update = {}
     result["tailor_plan"] = tailoring_update.get("tailor_plan") or {}
     result["resume_version"] = tailoring_update.get("resume_version") or {}
     result["fact_check_report"] = tailoring_update.get("fact_check_report") or {}
-    if matching_update.get("status"):
-        result["status"] = f"{result['status']} {str(matching_update['status'])}"
-    if tailoring_update:
-        result["status"] = f"{result['status']} ✍️ 已生成简历定制计划与事实校验结果。"
     return result

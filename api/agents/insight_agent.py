@@ -1,3 +1,5 @@
+# DEPRECATED (Phase 2): absorbed into api/agents/analysis_agent.py.
+# Retained for backward compatibility. Do not add new features here.
 from __future__ import annotations
 
 from typing import Any

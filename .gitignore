@@ -15,3 +15,12 @@ ENV/
 
 # Local worktrees
 .worktrees/
+
+# Runtime logs
+logs/
+
+# Claude Code local state
+.claude/
+
+# Environment
+.env

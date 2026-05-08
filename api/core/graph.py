@@ -9,17 +9,31 @@ from langgraph.graph import END, StateGraph
 
 from api.agents.insight_agent import insight_agent_node
 from api.agents.intent_router import intent_router_node
+from api.agents.job_intelligence_agent import job_intelligence_agent_node
+from api.agents.matching_agent import matching_agent_node
 from api.agents.quality_gate import quality_gate_node
 from api.agents.query_agent import query_agent_node
 from api.agents.report_agent import report_agent_node
+from api.agents.resume_tailor_agent import resume_tailor_agent_node
 from api.agents.review_agent import review_agent_node
+from api.agents.archetype_detector import archetype_detector_node
+from api.agents.legitimacy_scorer import legitimacy_scorer_node
+from api.agents.memory_retrieval import memory_retrieval_node
+from api.agents.offer_evaluator import offer_evaluator_node
 from api.agents.search_agent import search_agent_node
 from api.core.prompts import ReviewAgentResponse
 
 
 GRAPH_NODE_ORDER = [
     "IntentRouterNode",
+    "MemoryRetrievalNode",
     "SearchAgent",
+    "JobIntelligenceAgent",
+    "MatchingAgent",
+    "ResumeTailorAgent",
+    "ArchetypeDetector",
+    "LegitimacyScorer",
+    "OfferEvaluator",
     "QueryAgent",
     "InsightAgent",
     "QualityGate",
@@ -31,6 +45,7 @@ GRAPH_NODE_ORDER = [
 class AgentState(TypedDict):
     run_id: str
     query: str
+    user_id: str
     policy: Dict[str, Any]
     run_manifest: Dict[str, Any]
     intent: str
@@ -63,11 +78,45 @@ class AgentState(TypedDict):
     security_events: List[Dict[str, Any]]
     research_case: Dict[str, Any]
     status: str
+    memory_summary: str
+    memory_artifact_refs: Dict[str, Any]
+    working_memory: List[Dict[str, Any]]
+    memory_hits: List[Dict[str, Any]]
+    archetype_detection: Dict[str, Any]
+    adaptive_framing: Dict[str, Any]
+    legitimacy_assessment: Dict[str, Any]
+    offer_evaluation: Dict[str, Any]
+    gap_analysis: List[Dict[str, Any]]
+    level_strategy: Dict[str, Any]
+    score_interpretation: Dict[str, Any]
+    # Phase 2 routing fields
+    workflow_id: str
+    missing_artifacts: List[str]
+    warnings: List[str]
+    # Phase 2 tool fields
+    raw_jd_text: str
+    prep_pack: Dict[str, Any]
+    interview_prep_pack: Dict[str, Any]
+    profile_completeness: float
+    profile_gaps: List[str]
+    verification_report: Dict[str, Any]
+    offer_comparison: Dict[str, Any]
+    resume_file: Dict[str, Any]
+    resume_source_type: str
+    resume_raw_text: str
+    resume_content_bytes: Any
+    resume_source_name: str
+    skip_parse: bool
+    offer_list: List[Dict[str, Any]]
+    offer_weights: Dict[str, float]
+    # Working set analysis
+    working_set_analysis: Dict[str, Any]
 
 
 def build_initial_state(
     query: str,
     *,
+    user_id: str = "",
     run_id: str = "",
     candidate_profile: Dict[str, Any] | None = None,
     resume_evidence: List[Dict[str, Any]] | None = None,
@@ -80,6 +129,7 @@ def build_initial_state(
     return {
         "run_id": run_id,
         "query": query,
+        "user_id": user_id,
         "policy": dict(policy or {}),
         "run_manifest": dict(run_manifest or {}),
         "intent": "",
@@ -113,6 +163,39 @@ def build_initial_state(
         "security_events": [],
         "research_case": dict(research_case or {}),
         "status": "等待执行",
+        "memory_summary": "",
+        "memory_artifact_refs": {},
+        "working_memory": [],
+        "memory_hits": [],
+        "archetype_detection": {},
+        "adaptive_framing": {},
+        "legitimacy_assessment": {},
+        "offer_evaluation": {},
+        "gap_analysis": [],
+        "level_strategy": {},
+        "score_interpretation": {},
+        # Phase 2 routing fields
+        "workflow_id": "",
+        "missing_artifacts": [],
+        "warnings": [],
+        # Phase 2 tool fields
+        "raw_jd_text": "",
+        "prep_pack": {},
+        "interview_prep_pack": {},
+        "profile_completeness": 0.0,
+        "profile_gaps": [],
+        "verification_report": {},
+        "offer_comparison": {},
+        "resume_file": {},
+        "resume_source_type": "",
+        "resume_raw_text": "",
+        "resume_content_bytes": None,
+        "resume_source_name": "",
+        "skip_parse": False,
+        "offer_list": [],
+        "offer_weights": {},
+        # Working set analysis
+        "working_set_analysis": {},
     }
 
 
@@ -149,7 +232,14 @@ def build_career_research_graph() -> Any:
     builder: StateGraph = StateGraph(AgentState)  # type: ignore[assignment]
 
     builder.add_node("IntentRouterNode", intent_router_node)
+    builder.add_node("MemoryRetrievalNode", memory_retrieval_node)
     builder.add_node("SearchAgent", search_agent_node)
+    builder.add_node("JobIntelligenceAgent", job_intelligence_agent_node)
+    builder.add_node("MatchingAgent", matching_agent_node)
+    builder.add_node("ResumeTailorAgent", resume_tailor_agent_node)
+    builder.add_node("ArchetypeDetector", archetype_detector_node)
+    builder.add_node("LegitimacyScorer", legitimacy_scorer_node)
+    builder.add_node("OfferEvaluator", offer_evaluator_node)
     builder.add_node("QueryAgent", query_agent_node)
     builder.add_node("InsightAgent", insight_agent_node)
     builder.add_node("QualityGate", quality_gate_node)
@@ -157,8 +247,15 @@ def build_career_research_graph() -> Any:
     builder.add_node("ReviewAgent", review_agent_node)
 
     builder.set_entry_point("IntentRouterNode")
-    builder.add_edge("IntentRouterNode", "SearchAgent")
-    builder.add_edge("SearchAgent", "QueryAgent")
+    builder.add_edge("IntentRouterNode", "MemoryRetrievalNode")
+    builder.add_edge("MemoryRetrievalNode", "SearchAgent")
+    builder.add_edge("SearchAgent", "JobIntelligenceAgent")
+    builder.add_edge("JobIntelligenceAgent", "MatchingAgent")
+    builder.add_edge("MatchingAgent", "ResumeTailorAgent")
+    builder.add_edge("ResumeTailorAgent", "ArchetypeDetector")
+    builder.add_edge("ArchetypeDetector", "LegitimacyScorer")
+    builder.add_edge("LegitimacyScorer", "OfferEvaluator")
+    builder.add_edge("OfferEvaluator", "QueryAgent")
     builder.add_edge("QueryAgent", "InsightAgent")
     builder.add_edge("InsightAgent", "QualityGate")
     builder.add_edge("QualityGate", "ReportAgent")
@@ -173,6 +270,222 @@ def build_career_research_graph() -> Any:
             END: END,
         },
     )
+
+    return builder.compile()
+
+
+# ── Phase 2: Workflow-aware graph ──
+
+# Phase 2 node order (replaces GRAPH_NODE_ORDER when using Phase 2 graph)
+PHASE2_NODE_ORDER = [
+    "Supervisor",
+    "MemoryRetrievalNode",
+    "SearchOrchestrator",
+    "JobAnalyzer",
+    "MatchingEngine",
+    "ResumeTailor",
+    "ResumeParser",
+    "InterviewCoach",
+    "OfferEvaluator",
+    "AnalysisAgent",
+    "ReportAgent",
+    "Gate",
+]
+
+# Workflow definitions: {workflow_id: [node_sequence]}
+PHASE2_WORKFLOWS: dict[str, list[str]] = {
+    "wf_match_v2": [
+        "SearchOrchestrator", "JobAnalyzer", "MatchingEngine",
+        "AnalysisAgent", "ReportAgent", "Gate",
+    ],
+    "wf_resume_tailor_v2": [
+        "JobAnalyzer", "MatchingEngine", "ResumeTailor",
+        "AnalysisAgent", "ReportAgent", "Gate",
+    ],
+    "wf_interview_prep_v2": [
+        "JobAnalyzer", "MatchingEngine", "InterviewCoach",
+        "AnalysisAgent", "ReportAgent", "Gate",
+    ],
+    "wf_profile_bootstrap": [
+        "ResumeParser", "Gate",
+    ],
+    "wf_offer_compare": [
+        "OfferEvaluator", "ReportAgent", "Gate",
+    ],
+    "wf_application_followup_v1": [
+        "Gate",
+    ],
+}
+
+
+def _resolve_node_fn(node_name: str) -> Any:
+    """Resolve a node name to its callable function."""
+    from api.agents.supervisor import supervisor_node
+    from api.agents.memory_retrieval import memory_retrieval_node
+    from api.agents.analysis_agent import run_analysis_agent
+    from api.tools.search_orchestrator import run_search_orchestrator
+    from api.tools.job_analyzer import run_job_analyzer
+    from api.tools.matching_engine import run_matching_engine
+    from api.tools.resume_tailor import run_resume_tailor
+    from api.tools.resume_parser import run_resume_parser
+    from api.tools.interview_coach import run_interview_coach
+    from api.tools.offer_evaluator import run_offer_evaluator
+
+    mapping: dict[str, Any] = {
+        "Supervisor": supervisor_node,
+        "MemoryRetrievalNode": memory_retrieval_node,
+        "SearchOrchestrator": run_search_orchestrator,
+        "JobAnalyzer": run_job_analyzer,
+        "MatchingEngine": run_matching_engine,
+        "ResumeTailor": run_resume_tailor,
+        "ResumeParser": run_resume_parser,
+        "InterviewCoach": run_interview_coach,
+        "OfferEvaluator": run_offer_evaluator,
+        "AnalysisAgent": run_analysis_agent,
+        "ReportAgent": report_agent_node,
+        "Gate": _gate_node,
+    }
+    return mapping.get(node_name)
+
+
+async def _gate_node(state: AgentState) -> dict[str, Any]:  # type: ignore[valid-type]
+    """Gate node wrapper for LangGraph compatibility."""
+    from api.core.gate import run_gate
+
+    background = {
+        "request": {"query": state.get("query"), "query_profile": dict(state.get("query_profile") or {})},
+        "candidate": {
+            "candidate_profile": dict(state.get("candidate_profile") or {}),
+            "resume_evidence": list(state.get("resume_evidence") or []),
+        },
+    }
+    working_set = {
+        "retrieval": {"evidence_items": list(state.get("evidence_items") or [])},
+        "analysis": state.get("insights", {}),
+    }
+    artifacts = {
+        "job": {"job_snapshot": dict(state.get("job_snapshot") or {})},
+        "matching": {"match_assessment": dict(state.get("match_assessment") or {})},
+        "resume": {"resume_version": dict(state.get("resume_version") or {})},
+        "report": {"report_content": str(state.get("report_content") or "")},
+    }
+
+    result = run_gate(
+        artifacts=artifacts,
+        working_set=working_set,
+        background=background,
+        report_content=str(state.get("report_content") or ""),
+    )
+
+    return {
+        "verification_report": result.model_dump(mode="json"),
+        "quality_mode": "conservative" if result.status == "downgraded" else ("normal" if result.status == "passed" else "fallback"),
+        "warning_message": "; ".join(i.get("message", "") for i in result.issues) if result.issues else "",
+        "status": f"Gate 校验完成: {result.status}",
+    }
+
+
+def route_after_supervisor(state: AgentState) -> str:  # type: ignore[valid-type]
+    """Route to MemoryRetrievalNode after Supervisor."""
+    return "MemoryRetrievalNode"
+
+
+def route_after_memory_retrieval(state: AgentState) -> str:  # type: ignore[valid-type]
+    """Route to the first node of the selected workflow after memory retrieval."""
+    workflow_id = str(state.get("workflow_id") or "")
+    if workflow_id not in PHASE2_WORKFLOWS:
+        workflow_id = "wf_match_v2"
+
+    nodes = PHASE2_WORKFLOWS[workflow_id]
+    if nodes:
+        return nodes[0]
+    return "Gate"
+
+
+def route_after_matching_engine(state: AgentState) -> str:  # type: ignore[valid-type]
+    """Route after MatchingEngine depending on workflow."""
+    workflow_id = str(state.get("workflow_id") or "")
+    if workflow_id == "wf_resume_tailor_v2":
+        return "ResumeTailor"
+    if workflow_id == "wf_interview_prep_v2":
+        return "InterviewCoach"
+    return "AnalysisAgent"
+
+
+def build_phase2_graph() -> Any:
+    """Build the Phase 2 workflow-based graph with Supervisor routing.
+
+    Structure:
+      Supervisor → MemoryRetrievalNode → [first workflow node]
+      → ... → Gate → END
+
+    Each workflow follows its own Tool→Agent→Gate sequence.
+    Conditional routing is only used at actual branch points.
+    """
+    builder: StateGraph = StateGraph(AgentState)  # type: ignore[assignment]
+
+    # Add all nodes
+    builder.add_node("Supervisor", _resolve_node_fn("Supervisor"))
+    builder.add_node("MemoryRetrievalNode", _resolve_node_fn("MemoryRetrievalNode"))
+    builder.add_node("SearchOrchestrator", _resolve_node_fn("SearchOrchestrator"))
+    builder.add_node("JobAnalyzer", _resolve_node_fn("JobAnalyzer"))
+    builder.add_node("MatchingEngine", _resolve_node_fn("MatchingEngine"))
+    builder.add_node("ResumeTailor", _resolve_node_fn("ResumeTailor"))
+    builder.add_node("ResumeParser", _resolve_node_fn("ResumeParser"))
+    builder.add_node("InterviewCoach", _resolve_node_fn("InterviewCoach"))
+    builder.add_node("OfferEvaluator", _resolve_node_fn("OfferEvaluator"))
+    builder.add_node("AnalysisAgent", _resolve_node_fn("AnalysisAgent"))
+    builder.add_node("ReportAgent", _resolve_node_fn("ReportAgent"))
+    builder.add_node("Gate", _resolve_node_fn("Gate"))
+
+    # Entry: Supervisor
+    builder.set_entry_point("Supervisor")
+
+    # Supervisor → MemoryRetrievalNode (always)
+    builder.add_edge("Supervisor", "MemoryRetrievalNode")
+
+    # MemoryRetrievalNode → first workflow node (conditional)
+    builder.add_conditional_edges(
+        "MemoryRetrievalNode",
+        route_after_memory_retrieval,
+        {
+            "SearchOrchestrator": "SearchOrchestrator",
+            "JobAnalyzer": "JobAnalyzer",
+            "ResumeParser": "ResumeParser",
+            "OfferEvaluator": "OfferEvaluator",
+            "Gate": "Gate",
+        },
+    )
+
+    # Linear edges (no branching needed)
+    builder.add_edge("SearchOrchestrator", "JobAnalyzer")
+    builder.add_edge("JobAnalyzer", "MatchingEngine")
+
+    # MatchingEngine → conditional branch (ResumeTailor, InterviewCoach, or AnalysisAgent)
+    builder.add_conditional_edges(
+        "MatchingEngine",
+        route_after_matching_engine,
+        {
+            "ResumeTailor": "ResumeTailor",
+            "InterviewCoach": "InterviewCoach",
+            "AnalysisAgent": "AnalysisAgent",
+        },
+    )
+
+    # Tool → AnalysisAgent edges
+    builder.add_edge("ResumeTailor", "AnalysisAgent")
+    builder.add_edge("InterviewCoach", "AnalysisAgent")
+
+    # Special paths that skip AnalysisAgent
+    builder.add_edge("ResumeParser", "Gate")
+    builder.add_edge("OfferEvaluator", "ReportAgent")
+
+    # AnalysisAgent → ReportAgent → Gate
+    builder.add_edge("AnalysisAgent", "ReportAgent")
+    builder.add_edge("ReportAgent", "Gate")
+
+    # Gate → END
+    builder.add_edge("Gate", END)
 
     return builder.compile()
 
@@ -242,6 +555,63 @@ def build_agent_message_event(agent: str, state: AgentState) -> dict[str, Any] |
                 "retrieval_diagnostics": state.get("retrieval_diagnostics"),
                 "business_domain_hints": insights.get("business_domain_hints"),
                 "search_failures": insights.get("search_failures"),
+            },
+            "timestamp": now,
+        }
+
+    if agent == "JobIntelligenceAgent":
+        job_snapshot = dict(state.get("job_snapshot") or {})
+        external_evidence_pack = dict(state.get("external_evidence_pack") or {})
+        return {
+            "type": "message",
+            "speaker": "JobIntelligenceAgent",
+            "content": "JobIntelligenceAgent 已融合外部证据生成岗位快照与证据包。",
+            "metadata": {
+                "job_snapshot_id": job_snapshot.get("job_snapshot_id"),
+                "evidence_pack_id": external_evidence_pack.get("evidence_pack_id"),
+                "job_id": job_snapshot.get("job_id"),
+                "requirement_count": len(list(job_snapshot.get("job_requirements") or [])),
+                "evidence_source_count": len(list(external_evidence_pack.get("sources") or [])),
+                "freshness": (job_snapshot.get("evidence_quality") or {}).get("freshness"),
+                "coverage": (job_snapshot.get("evidence_quality") or {}).get("coverage"),
+            },
+            "timestamp": now,
+        }
+
+    if agent == "MatchingAgent":
+        match_assessment = dict(state.get("match_assessment") or {})
+        return {
+            "type": "message",
+            "speaker": "MatchingAgent",
+            "content": "MatchingAgent 已完成候选人-岗位匹配分析。",
+            "metadata": {
+                "assessment_id": match_assessment.get("assessment_id"),
+                "overall_score": match_assessment.get("overall_score"),
+                "recommendation": match_assessment.get("recommendation"),
+                "strength_count": len(list(match_assessment.get("strengths") or [])),
+                "gap_count": len(list(match_assessment.get("gaps") or [])),
+                "risk_count": len(list(match_assessment.get("risks") or [])),
+                "dimension_scores": match_assessment.get("dimension_scores"),
+            },
+            "timestamp": now,
+        }
+
+    if agent == "ResumeTailorAgent":
+        tailor_plan = dict(state.get("tailor_plan") or {})
+        resume_version = dict(state.get("resume_version") or {})
+        fact_check_report = dict(state.get("fact_check_report") or {})
+        return {
+            "type": "message",
+            "speaker": "ResumeTailorAgent",
+            "content": "ResumeTailorAgent 已生成简历定制计划、岗位版本和事实校验结果。",
+            "metadata": {
+                "tailor_plan_id": tailor_plan.get("tailor_plan_id"),
+                "resume_version_id": resume_version.get("resume_version_id"),
+                "target_role": tailor_plan.get("target_role"),
+                "fact_check_status": fact_check_report.get("status") or resume_version.get("fact_check_status"),
+                "keyword_covered": list((tailor_plan.get("keyword_coverage") or {}).get("covered") or [])[:4],
+                "keyword_missing": list((tailor_plan.get("keyword_coverage") or {}).get("missing") or [])[:4],
+                "section_action_count": len(list(tailor_plan.get("section_actions") or [])),
             },
             "timestamp": now,
         }
@@ -351,10 +721,16 @@ def parse_review_feedback_json(state: AgentState) -> dict[str, Any] | None:
 __all__ = [
     "AgentState",
     "GRAPH_NODE_ORDER",
+    "PHASE2_NODE_ORDER",
+    "PHASE2_WORKFLOWS",
     "build_agent_message_event",
     "build_career_research_graph",
+    "build_phase2_graph",
     "build_initial_state",
     "merge_state_update",
     "parse_review_feedback_json",
     "route_after_review",
+    "route_after_supervisor",
+    "route_after_memory_retrieval",
+    "route_after_matching_engine",
 ]

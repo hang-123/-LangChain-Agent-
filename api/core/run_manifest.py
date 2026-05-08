@@ -24,6 +24,8 @@ class ExperimentFlags(BaseModel):
     query_store_dual_write: bool = False
     sqlite_cache: bool = False
     guardrails_minimal: bool = False
+    pgvector_rag: bool = False
+    conversation_memory: bool = False
 
 
 class ExperimentAssignment(BaseModel):
@@ -155,5 +157,7 @@ def build_run_manifest(
             query_store_dual_write=bool(settings.enable_query_store),
             sqlite_cache=bool(settings.enable_cache),
             guardrails_minimal=bool(settings.enable_guardrails),
+            pgvector_rag=bool(settings.enable_rag),
+            conversation_memory=bool(settings.enable_conversation_memory),
         ),
     )

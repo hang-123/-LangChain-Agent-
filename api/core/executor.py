@@ -4,8 +4,14 @@ from typing import Any, AsyncIterator
 
 from api.core.constants import MAX_RETRIES, NODE_START_MESSAGES
 from api.core.contracts import RunTraceEntry, SecurityAuditEvent
+from api.core.conversation_memory import (
+    build_conversation_memory_store,
+    load_memory_for_user,
+    save_memory_turn,
+)
 from api.core.graph import (
     GRAPH_NODE_ORDER,
+    PHASE2_NODE_ORDER,
     AgentState,
     build_agent_message_event,
     build_initial_state,
@@ -22,16 +28,18 @@ from api.core.persistence import build_repository
 from api.core.policy_loader import load_policy
 from api.core.run_manifest import build_run_manifest
 from api.core.settings import get_settings
+from api.core.workflow_state import get_workflow_state_view
 
 
 def _resolve_graph_node_name(event: dict[str, Any]) -> str | None:
     metadata = event.get("metadata") or {}
     langgraph_node = metadata.get("langgraph_node")
-    if isinstance(langgraph_node, str) and langgraph_node in GRAPH_NODE_ORDER:
+    all_nodes = GRAPH_NODE_ORDER + [n for n in PHASE2_NODE_ORDER if n not in GRAPH_NODE_ORDER]
+    if isinstance(langgraph_node, str) and langgraph_node in all_nodes:
         return langgraph_node
 
     name = event.get("name")
-    if isinstance(name, str) and name in GRAPH_NODE_ORDER:
+    if isinstance(name, str) and name in all_nodes:
         return name
     return None
 
@@ -63,12 +71,15 @@ class ResearchExecutionSession:
         job_posting: dict[str, Any] | None = None,
         match_assessment: dict[str, Any] | None = None,
         research_case: dict[str, Any] | None = None,
+        user_id: str = "",
     ) -> None:
         self.graph = graph
         self.settings = get_settings()
         self.node_perf_enabled = bool(self.settings.enable_node_perf)
         self.policy = load_policy()
         self.repository = build_repository(self.policy)
+        self.user_id = str(user_id or "").strip()
+        self.memory_store = build_conversation_memory_store() if self.settings.enable_conversation_memory and self.user_id else None
         run_id = new_run_id()
         sanitized_query, input_security_events, blocked = inspect_query_input(query, run_id)
         if blocked:
@@ -84,6 +95,7 @@ class ResearchExecutionSession:
         self.state: AgentState = build_initial_state(
             self.query,
             run_id=run_id,
+            user_id=self.user_id,
             candidate_profile=candidate_profile,
             resume_evidence=resume_evidence,
             job_posting=job_posting,
@@ -114,6 +126,16 @@ class ResearchExecutionSession:
         node_spans: dict[str, Any] = {}
         node_attempts: dict[str, int] = {}
 
+        memory_used = False
+        conversation_summary = ""
+        if self.memory_store is not None:
+            snapshot = await load_memory_for_user(store=self.memory_store, user_id=self.user_id)
+            if snapshot is not None:
+                state["memory_summary"] = snapshot.summary
+                state["memory_artifact_refs"] = snapshot.artifact_refs
+                memory_used = True
+                conversation_summary = snapshot.summary
+
         with start_span(
             "research.session",
             {
@@ -136,12 +158,15 @@ class ResearchExecutionSession:
                     "metrics": build_event_metrics(state),
                     "run_manifest": state.get("run_manifest"),
                     "policy_version": dict(state.get("run_manifest") or {}).get("policy_version", ""),
+                    "memory_used": memory_used,
+                    "conversation_summary": conversation_summary,
                 }
 
                 async for event in self.graph.astream_events(
                     build_initial_state(
                         self.query,
                         run_id=state["run_id"],
+                        user_id=str(state.get("user_id") or ""),
                         candidate_profile=state.get("candidate_profile"),
                         resume_evidence=list(state.get("resume_evidence") or []),
                         job_posting=state.get("job_posting"),
@@ -266,6 +291,39 @@ class ResearchExecutionSession:
             state["perf_bill"] = perf_bill.model_dump(mode="json")
             state["perf_bill_path"] = str(perf_bill_path or "")
         self.repository.save_run_completed(self.run_manifest, state)
+        memory_saved = None
+        if self.memory_store is not None:
+            memory_saved = await save_memory_turn(
+                store=self.memory_store,
+                user_id=self.user_id,
+                query=self.query,
+                state=state,
+            )
+            if memory_saved is not None and not conversation_summary:
+                conversation_summary = memory_saved.summary
+            memory_used = memory_used or memory_saved is not None
+
+            # Phase 2: LTM consolidation (async, non-blocking)
+            if self.settings.enable_ltm:
+                try:
+                    from api.core.memory.ltm_store import build_ltm_store
+                    from api.core.memory.consolidation import consolidate_session, run_periodic_maintenance
+
+                    ltm_store = build_ltm_store()
+                    if ltm_store is not None:
+                        session_id = state.get("run_id", self.user_id)
+                        await consolidate_session(
+                            stm_store=self.memory_store,
+                            ltm_store=ltm_store,
+                            user_id=self.user_id,
+                            session_id=session_id,
+                        )
+                        await run_periodic_maintenance(
+                            ltm_store=ltm_store,
+                            user_id=self.user_id,
+                        )
+                except Exception:
+                    pass  # Consolidation failure is non-blocking
         yield {
             "type": "done",
             "run_id": state["run_id"],
@@ -284,4 +342,7 @@ class ResearchExecutionSession:
             "perf_bill_path": state.get("perf_bill_path"),
             "trace": state.get("run_trace"),
             "metrics": build_event_metrics(state),
+            "workflow_state": get_workflow_state_view(state),
+            "memory_used": memory_used,
+            "conversation_summary": conversation_summary,
         }

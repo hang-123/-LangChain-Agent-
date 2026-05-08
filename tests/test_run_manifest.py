@@ -12,6 +12,8 @@ def test_forced_variant_is_written_to_run_manifest(monkeypatch):
     monkeypatch.setenv("ENABLE_CACHE", "1")
     monkeypatch.setenv("ENABLE_QUERY_STORE", "1")
     monkeypatch.setenv("ENABLE_GUARDRAILS", "1")
+    monkeypatch.setenv("ENABLE_RAG", "1")
+    monkeypatch.setenv("ENABLE_CONVERSATION_MEMORY", "1")
     get_settings.cache_clear()
 
     policy = load_policy()
@@ -24,6 +26,8 @@ def test_forced_variant_is_written_to_run_manifest(monkeypatch):
     assert manifest.experiment_flags.sqlite_cache is True
     assert manifest.experiment_flags.query_store_dual_write is True
     assert manifest.experiment_flags.guardrails_minimal is True
+    assert manifest.experiment_flags.pgvector_rag is True
+    assert manifest.experiment_flags.conversation_memory is True
 
     get_settings.cache_clear()
 

@@ -1,3 +1,5 @@
+# DEPRECATED (Phase 2): moved to api/tools/resume_tailor.py.
+# Core logic (build_resume_tailoring_artifacts) still used by new tool.
 from __future__ import annotations
 
 from typing import Any

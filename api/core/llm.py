@@ -10,9 +10,10 @@ from pydantic import BaseModel
 from api.core.settings import get_settings
 
 try:
-    from langchain_openai import ChatOpenAI  # type: ignore
+    from langchain_openai import ChatOpenAI, OpenAIEmbeddings  # type: ignore
 except Exception:  # pragma: no cover
     ChatOpenAI = None  # type: ignore
+    OpenAIEmbeddings = None  # type: ignore
 
 
 SchemaT = TypeVar("SchemaT", bound=BaseModel)
@@ -33,6 +34,27 @@ def get_chat_model(*, temperature: float = 0.1, streaming: bool = False) -> Any:
         base_url=settings.openai_base_url,
         streaming=streaming,
     )
+
+
+def get_embedding_model() -> Any:
+    settings = get_settings()
+    api_key = settings.openai_api_key.get_secret_value() if settings.openai_api_key else ""
+    if not api_key:
+        raise RuntimeError("Embedding model not configured: missing OPENAI_API_KEY / QUERY_ENGINE_API_KEY / DASHSCOPE_API_KEY.")
+    if OpenAIEmbeddings is None:
+        raise RuntimeError("langchain-openai is not installed.")
+    return OpenAIEmbeddings(
+        model=settings.openai_embedding_model,
+        api_key=api_key,
+        base_url=settings.openai_base_url,
+    )
+
+
+async def embed_query(text: str) -> list[float]:
+    model = get_embedding_model()
+    if hasattr(model, "aembed_query"):
+        return list(await model.aembed_query(text))
+    return list(model.embed_query(text))
 
 
 def coerce_message_text(payload: Any) -> str:

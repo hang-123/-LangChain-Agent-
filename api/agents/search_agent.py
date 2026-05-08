@@ -1,3 +1,5 @@
+# DEPRECATED (Phase 2): wrapped by api/tools/search_orchestrator.py.
+# Core search logic still used via delegation. Do not add new routing logic here.
 from __future__ import annotations
 
 import asyncio
@@ -11,6 +13,7 @@ from api.core.guardrails import enforce_tool_whitelist, filter_selected_sources
 from api.core.job_query import build_query_profile
 from api.core.metrics import observe_cache_lookup
 from api.core.policy_loader import policy_from_state
+from api.core.rag_store import search_rag_sources
 from api.core.settings import get_settings
 from api.tools import (
     NormalizedSource,
@@ -390,8 +393,9 @@ def _build_evidence_item(
     freshness_score = _freshness_score(source.published)
     base_score = 55 + freshness_score // 4 + (10 if company_specific else 0) + (8 if source_class in {"company_profile", "jd"} else 0)
     quality_score = max(25, min(100, base_score))
+    source_id = f"rag-source-{index}" if source.query == "rag_vector_search" else f"source-{index}"
     return {
-        "source_id": f"source-{index}",
+        "source_id": source_id,
         "source_class": source_class,
         "query": source.query,
         "url": source.url,
@@ -506,6 +510,11 @@ async def search_agent_node(state: dict[str, Any]) -> dict[str, Any]:
     cached_result = _get_cached_result(cache_key, ttl_seconds=retrieval_policy.cache_ttl_seconds)
     if cached_result is not None:
         cached_result["query_pack"] = list(cached_result.get("query_pack") or query_pack)
+        retrieval = dict(cached_result.get("retrieval_diagnostics") or {})
+        retrieval.setdefault("rag_enabled", bool(get_settings().enable_rag))
+        retrieval.setdefault("rag_hit_count", 0)
+        retrieval.setdefault("rag_failures", [])
+        cached_result["retrieval_diagnostics"] = retrieval
         if security_events:
             cached_result["security_events"] = list(cached_result.get("security_events") or []) + [
                 event.model_dump(mode="json") for event in security_events
@@ -524,6 +533,45 @@ async def search_agent_node(state: dict[str, Any]) -> dict[str, Any]:
             execution_failures.append(f"{tool_name}:{result}")
             continue
         tool_results.append(result)
+
+    rag_hits, rag_failures = [], []
+    rag_enabled = bool(get_settings().enable_rag)
+    if rag_enabled:
+        try:
+            rag_hits, rag_failures = await search_rag_sources(
+                query=query,
+                profile=profile,
+                top_k=int(get_settings().rag_top_k or 4),
+            )
+        except Exception:
+            rag_failures.append("rag:unexpected search failure")
+
+    if rag_hits:
+        existing_urls = {source.url for result in tool_results for source in result.sources}
+        rag_sources: list[NormalizedSource] = []
+        for hit in rag_hits:
+            if hit.chunk.url in existing_urls:
+                continue
+            rag_sources.append(
+                NormalizedSource(
+                    query="rag_vector_search",
+                    url=hit.chunk.url,
+                    title=hit.chunk.title,
+                    snippet=hit.chunk.text,
+                    published="未知",
+                    score=str(hit.score),
+                    raw_type=hit.chunk.source_type,
+                )
+            )
+        if rag_sources:
+            tool_results.append(
+                ToolSearchResult(
+                    tool_name="rag_vector_search",
+                    search_queries=[query],
+                    sources=rag_sources,
+                )
+            )
+            used_tools.append("rag_vector_search")
 
     selected, merged = _select_sources(
         tool_results,
@@ -545,7 +593,7 @@ async def search_agent_node(state: dict[str, Any]) -> dict[str, Any]:
         required_classes=required_classes,
     )
     security_events.extend(retrieval_events)
-    merged["search_failures"] = merged["search_failures"] + execution_failures
+    merged["search_failures"] = merged["search_failures"] + execution_failures + rag_failures
 
     source_tier_counts: dict[str, int] = {}
     for source, source_class, _, company_specific in selected:
@@ -592,6 +640,9 @@ async def search_agent_node(state: dict[str, Any]) -> dict[str, Any]:
         "query_pack": query_pack,
         "source_tier_counts": source_tier_counts,
         "guardrail_blocked_sources": len(retrieval_events),
+        "rag_enabled": rag_enabled,
+        "rag_hit_count": len(rag_hits),
+        "rag_failures": rag_failures[:6],
     }
 
     insights = dict(state.get("insights") or {})

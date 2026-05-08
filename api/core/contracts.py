@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from enum import Enum
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field
@@ -9,7 +10,10 @@ RootCause = Literal["retrieval", "attribution", "synthesis", "llm_runtime"]
 QualityMode = Literal["normal", "conservative", "fallback"]
 RetryTarget = Literal["query", "report", "insight"]
 IssueSeverity = Literal["low", "medium", "high"]
-ResearchIntent = Literal["general", "tech_coding", "salary_culture"]
+ResearchIntent = Literal[
+    "general", "tech_coding", "salary_culture",
+    "match", "resume_tailor", "interview_prep", "offer_compare", "profile_bootstrap",
+]
 
 
 class QueryProfile(BaseModel):
@@ -165,6 +169,10 @@ class ResearchCase(BaseModel):
     company_assertions: list[str] = Field(default_factory=list)
     allow_conservative: bool = True
     risk_tags: list[str] = Field(default_factory=list)
+    candidate_profile: dict[str, Any] = Field(default_factory=dict)
+    resume_evidence: list[dict[str, Any]] = Field(default_factory=list)
+    match_ground_truth: dict[str, Any] = Field(default_factory=dict)
+    resume_ground_truth: dict[str, Any] = Field(default_factory=dict)
 
 
 class IntentRouterResponse(BaseModel):
@@ -219,6 +227,8 @@ class NodeScorecard(BaseModel):
     attribution: int = Field(default=0, ge=0, le=100)
     insight: int = Field(default=0, ge=0, le=100)
     report_compliance: int = Field(default=0, ge=0, le=100)
+    matching: int = Field(default=0, ge=0, le=100)
+    resume: int = Field(default=0, ge=0, le=100)
 
 
 class EvalMetadata(BaseModel):
@@ -366,3 +376,279 @@ class VerificationReport(BaseModel):
     issues: list[VerificationIssue] = Field(default_factory=list)
     checked_rules: list[str] = Field(default_factory=list)
     created_at: str
+
+
+# ═══════════════════════════════════════════════════════════════
+# career-ops Integration Models (Level 1 — Data Contracts)
+# ═══════════════════════════════════════════════════════════════
+
+
+# ── Archetype Detection ──
+
+
+class Archetype(str, Enum):
+    """Job role archetypes — matches career-ops classification system."""
+
+    LLMOPS = "AI Platform / LLMOps"
+    AGENTIC = "Agentic / Automation"
+    AI_PM = "Technical AI PM"
+    SOLUTIONS_ARCHITECT = "AI Solutions Architect"
+    FORWARD_DEPLOYED = "AI Forward Deployed"
+    TRANSFORMATION = "AI Transformation"
+
+
+class ArchetypeDetection(BaseModel):
+    """Output of archetype classification for a job posting."""
+
+    primary: Archetype
+    secondary: Archetype | None = None
+    confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+    keyword_matches: list[str] = Field(default_factory=list)
+    reasoning: str = ""
+
+
+# ── Legitimacy Assessment (Ghost Job Detection) ──
+
+
+class LegitimacyTier(str, Enum):
+    """Three-tier classification for posting legitimacy."""
+
+    HIGH_CONFIDENCE = "High Confidence"
+    PROCEED_CAUTION = "Proceed with Caution"
+    SUSPICIOUS = "Suspicious"
+
+
+class LegitimacySignal(BaseModel):
+    """A single observed signal contributing to the legitimacy assessment."""
+
+    signal_name: str
+    finding: str
+    weight: Literal["Positive", "Neutral", "Concerning"]
+    reliability: Literal["High", "Medium", "Low"]
+
+
+class LegitimacyAssessment(BaseModel):
+    """Block G output — independent of the 1-5 global score."""
+
+    tier: LegitimacyTier
+    posting_age_days: int | None = None
+    apply_button_active: bool | None = None
+    tech_specificity_score: float = Field(default=0.0, ge=0.0, le=1.0)
+    requirements_realism_score: float = Field(default=1.0, ge=0.0, le=1.0)
+    layoff_signals: list[str] = Field(default_factory=list)
+    repost_count_90d: int = 0
+    signals_table: list[LegitimacySignal] = Field(default_factory=list)
+    context_notes: str = ""
+    # Batch mode flag: Playwright not available → freshness signals unverified
+    batch_mode: bool = False
+
+
+# ── Match Gap Analysis ──
+
+
+class GapSeverity(str, Enum):
+    """Four-level gap classification."""
+
+    HARD_BLOCKER = "hard_blocker"
+    SIGNIFICANT = "significant"
+    NICE_TO_HAVE = "nice_to_have"
+    SOFT = "soft"
+
+
+class MatchGap(BaseModel):
+    """A single gap between JD requirements and candidate capabilities."""
+
+    description: str
+    severity: GapSeverity
+    adjacent_experience: str | None = None
+    portfolio_coverage: str | None = None
+    mitigation_plan: str = ""
+
+
+# ── Offer Comparison (10-Dimension Weighted Matrix) ──
+
+
+class OfferDimension(str, Enum):
+    """Weighted dimensions for multi-offer comparison."""
+
+    NORTH_STAR = "north_star_alignment"
+    CV_MATCH = "cv_match"
+    SENIORITY = "seniority_level"
+    COMPENSATION = "compensation"
+    GROWTH = "growth_trajectory"
+    REMOTE = "remote_quality"
+    REPUTATION = "company_reputation"
+    TECH_STACK = "tech_stack_modernity"
+    SPEED = "speed_to_offer"
+    CULTURE = "cultural_signals"
+
+
+# Default weights from career-ops ofertas mode
+DEFAULT_OFFER_WEIGHTS: dict[OfferDimension, float] = {
+    OfferDimension.NORTH_STAR: 0.25,
+    OfferDimension.CV_MATCH: 0.15,
+    OfferDimension.SENIORITY: 0.15,
+    OfferDimension.COMPENSATION: 0.10,
+    OfferDimension.GROWTH: 0.10,
+    OfferDimension.REMOTE: 0.05,
+    OfferDimension.REPUTATION: 0.05,
+    OfferDimension.TECH_STACK: 0.05,
+    OfferDimension.SPEED: 0.05,
+    OfferDimension.CULTURE: 0.05,
+}
+
+
+class OfferComparison(BaseModel):
+    """Multi-offer comparison result."""
+
+    dimensions: dict[str, float] = Field(default_factory=dict)
+    scores: dict[str, dict[str, float]] = Field(default_factory=dict)
+    weighted_totals: dict[str, float] = Field(default_factory=dict)
+    ranking: list[str] = Field(default_factory=list)
+    recommendation: str = ""
+
+
+# ── STAR+R Stories ──
+
+
+class STARStory(BaseModel):
+    """A STAR+R story for interview preparation.
+
+    The Reflection field distinguishes senior candidates (who extract
+    lessons) from junior candidates (who only describe what happened).
+    """
+
+    story_id: str
+    title: str = ""
+    situation: str = ""
+    task: str = ""
+    action: str = ""
+    result: str = ""
+    reflection: str = ""
+    archetypes: list[Archetype] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list)
+
+
+# ── Adaptive Framing ──
+
+
+class AdaptiveFraming(BaseModel):
+    """Archetype-specific narrative angles for the same underlying experience.
+
+    Maps "Technical builder" persona to different presentation angles
+    depending on the target role archetype.
+    """
+
+    archetype: Archetype
+    headline: str = ""
+    emphasize: list[str] = Field(default_factory=list)
+    de_emphasize: list[str] = Field(default_factory=list)
+    proof_point_priority: list[str] = Field(default_factory=list)
+
+
+# ── Follow-up Cadence ──
+
+
+class FollowupUrgency(str, Enum):
+    URGENT = "urgent"
+    OVERDUE = "overdue"
+    WAITING = "waiting"
+    COLD = "cold"
+
+
+class FollowupRecommendation(BaseModel):
+    """A single follow-up recommendation for an active application."""
+
+    application_id: str
+    company: str
+    role: str
+    status: str
+    days_since_application: int = 0
+    days_since_last_followup: int | None = None
+    followup_count: int = 0
+    urgency: FollowupUrgency = FollowupUrgency.WAITING
+    next_followup_date: str | None = None
+    days_until_next: int | None = None
+
+
+# ═══════════════════════════════════════════════════════════════
+# Phase 2 — Supervisor, Gate, Interview, Offer Contracts
+# ═══════════════════════════════════════════════════════════════
+
+GateStatus = Literal["passed", "downgraded", "rejected"]
+WorkflowId = Literal[
+    "wf_match_v2", "wf_resume_tailor_v2", "wf_interview_prep_v2",
+    "wf_profile_bootstrap", "wf_offer_compare", "wf_application_followup_v1",
+]
+
+
+class SupervisorResponse(BaseModel):
+    """Supervisor output: intent + workflow selection + missing param detection."""
+    intent: ResearchIntent = Field(default="general")
+    workflow_id: WorkflowId = Field(default="wf_match_v2")
+    query_profile: QueryProfile = Field(default_factory=QueryProfile)
+    missing_artifacts: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    reasoning: str = ""
+
+
+class GateInput(BaseModel):
+    """Input to the Gate from workflow state."""
+    artifacts: dict[str, Any] = Field(default_factory=dict)
+    working_set: dict[str, Any] = Field(default_factory=dict)
+    background: dict[str, Any] = Field(default_factory=dict)
+
+
+class GateOutput(BaseModel):
+    """Gate output: three-state decision."""
+    status: GateStatus = "passed"
+    issues: list[dict[str, Any]] = Field(default_factory=list)
+    checked_rules: list[str] = Field(default_factory=list)
+
+
+class InterviewQuestion(BaseModel):
+    question: str = ""
+    category: Literal["behavioral", "technical", "project_deep_dive"] = "behavioral"
+    evidence_refs: list[str] = Field(default_factory=list)
+    answer_framework: str = ""
+
+
+class InterviewPrepPack(BaseModel):
+    prep_id: str = ""
+    candidate_id: str = ""
+    job_id: str = ""
+    behavioral_questions: list[InterviewQuestion] = Field(default_factory=list)
+    technical_questions: list[InterviewQuestion] = Field(default_factory=list)
+    project_deep_dive: list[InterviewQuestion] = Field(default_factory=list)
+    practice_advice: list[str] = Field(default_factory=list)
+    risk_questions: list[InterviewQuestion] = Field(default_factory=list)
+
+
+class OfferData(BaseModel):
+    offer_id: str = ""
+    company: str = ""
+    role: str = ""
+    north_star_alignment: float = 0.0
+    cv_match: float = 0.0
+    seniority_level: float = 0.0
+    compensation: float = 0.0
+    growth_trajectory: float = 0.0
+    remote_quality: float = 0.0
+    company_reputation: float = 0.0
+    tech_stack_modernity: float = 0.0
+    speed_to_offer: float = 0.0
+    cultural_signals: float = 0.0
+
+
+class ResumeParseResult(BaseModel):
+    resume_id: str = ""
+    candidate_id: str = ""
+    candidate_profile: dict[str, Any] = Field(default_factory=dict)
+    resume_evidence: list[dict[str, Any]] = Field(default_factory=list)
+    profile_completeness: float = Field(default=0.0, ge=0.0, le=1.0)
+    profile_gaps: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    source_type: str = ""
+    source_name: str = ""
+    language: str = "zh-CN"
+    parsed_at: str = ""
