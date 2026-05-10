@@ -115,3 +115,42 @@ async def test_get_application_not_found():
     result = await store.get_application("nonexistent_id")
     assert result == {}
     await store.close()
+
+
+@pytest.mark.asyncio
+async def test_run_application_store_create():
+    from api.tools.application_store import run_application_store
+    state = {
+        "application_store_request": {
+            "operation": "create_application",
+            "payload": {"candidate_id": "c1", "job_id": "j1", "company": "Co", "role": "Dev", "status": "planned"},
+        }
+    }
+    result = await run_application_store(state)
+    resp = result["application_store_response"]
+    assert resp["ok"] is True
+    assert resp["application_record"]["candidate_id"] == "c1"
+
+
+@pytest.mark.asyncio
+async def test_run_application_store_invalid_request():
+    from api.tools.application_store import run_application_store
+    result = await run_application_store({})
+    resp = result["application_store_response"]
+    assert resp["ok"] is False
+    assert resp["error_code"] == "invalid_request"
+
+
+@pytest.mark.asyncio
+async def test_run_application_store_unknown_operation():
+    from api.tools.application_store import run_application_store
+    state = {
+        "application_store_request": {
+            "operation": "nonexistent_op",
+            "payload": {},
+        }
+    }
+    result = await run_application_store(state)
+    resp = result["application_store_response"]
+    assert resp["ok"] is False
+    assert resp["error_code"] == "unknown_operation"

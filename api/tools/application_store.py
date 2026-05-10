@@ -56,6 +56,10 @@ class ApplicationStore:
         self.conn: aiosqlite.Connection | None = None
 
     async def initialize(self) -> None:
+        import os
+        dir_path = os.path.dirname(self.db_path)
+        if dir_path:
+            os.makedirs(dir_path, exist_ok=True)
         self.conn = await aiosqlite.connect(self.db_path)
         self.conn.row_factory = aiosqlite.Row
         await self.conn.execute("""
@@ -276,6 +280,14 @@ async def run_application_store(state: dict[str, Any]) -> dict[str, Any]:
             result = await store.get_application(
                 application_id=str(payload.get("application_id", "")),
             )
+            if not result:
+                return {
+                    "application_store_response": {
+                        "ok": False,
+                        "error_code": "not_found",
+                        "message": f"Application {payload.get('application_id', '')} not found",
+                    },
+                }
             return {
                 "application_store_response": {
                     "ok": True,

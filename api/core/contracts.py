@@ -688,7 +688,7 @@ ApplicationStoreOperation = Literal[
 
 
 class ApplicationStoreRequest(BaseModel):
-    operation: ApplicationStoreOperation
+    operation: str
     payload: dict[str, Any] = Field(default_factory=dict)
 
 
