@@ -652,3 +652,46 @@ class ResumeParseResult(BaseModel):
     source_name: str = ""
     language: str = "zh-CN"
     parsed_at: str = ""
+
+
+# ── Application Store Models ──
+
+ApplicationStatus = Literal[
+    "draft", "planned", "applied", "screening",
+    "written_test", "interviewing", "offer",
+    "rejected", "withdrawn",
+]
+
+
+class ApplicationNote(BaseModel):
+    note_id: str = ""
+    content: str = ""
+    created_at: str = ""
+
+
+class ApplicationRecord(BaseModel):
+    application_id: str = ""
+    candidate_id: str = ""
+    job_id: str = ""
+    company: str = ""
+    role: str = ""
+    status: ApplicationStatus = "draft"
+    notes: list[ApplicationNote] = Field(default_factory=list)
+    created_at: str = ""
+    last_updated_at: str = ""
+
+
+class ApplicationStoreRequest(BaseModel):
+    operation: Literal[
+        "create_application", "update_status", "append_note",
+        "list_applications", "get_application",
+    ]
+    payload: dict[str, Any] = Field(default_factory=dict)
+
+
+class ApplicationStoreResponse(BaseModel):
+    ok: bool = True
+    application_record: dict[str, Any] | None = None
+    application_records: list[dict[str, Any]] | None = None
+    error_code: str = ""
+    message: str = ""
