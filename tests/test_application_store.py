@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import os
+import uuid
+
 import pytest
 
 from api.tools.application_store import (
@@ -120,16 +123,24 @@ async def test_get_application_not_found():
 @pytest.mark.asyncio
 async def test_run_application_store_create():
     from api.tools.application_store import run_application_store
+    # Clean up from previous runs
+    db_path = "data/application_store.db"
+    if os.path.exists(db_path):
+        os.remove(db_path)
+    uid = uuid.uuid4().hex[:8]
     state = {
         "application_store_request": {
             "operation": "create_application",
-            "payload": {"candidate_id": "c1", "job_id": "j1", "company": "Co", "role": "Dev", "status": "planned"},
+            "payload": {"candidate_id": f"c_{uid}", "job_id": f"j_{uid}", "company": "Co", "role": "Dev", "status": "planned"},
         }
     }
     result = await run_application_store(state)
     resp = result["application_store_response"]
     assert resp["ok"] is True
-    assert resp["application_record"]["candidate_id"] == "c1"
+    assert resp["application_record"]["candidate_id"] == f"c_{uid}"
+    # Cleanup
+    if os.path.exists(db_path):
+        os.remove(db_path)
 
 
 @pytest.mark.asyncio
