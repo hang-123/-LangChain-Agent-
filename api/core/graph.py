@@ -463,6 +463,18 @@ def _gate_retry_target(state: AgentState) -> str:
         return workflow_nodes[0]
     if root_cause == "attribution":
         return "AnalysisAgent" if "AnalysisAgent" in workflow_nodes else "ReportAgent"
+    if root_cause == "prep":
+        if "InterviewCoach" in workflow_nodes:
+            return "InterviewCoach"
+        if "MatchingEngine" in workflow_nodes:
+            return "MatchingEngine"
+        return "ReportAgent"
+    if root_cause == "synthesis":
+        return "ReportAgent"
+    # Default: fall back to the first retry-eligible node in the workflow
+    for node in ("ReportAgent", "AnalysisAgent", "MatchingEngine", "JobAnalyzer"):
+        if node in workflow_nodes:
+            return node
     return "ReportAgent"
 
 
@@ -562,6 +574,8 @@ def build_phase2_graph() -> Any:
         {
             "SearchOrchestrator": "SearchOrchestrator",
             "JobAnalyzer": "JobAnalyzer",
+            "MatchingEngine": "MatchingEngine",
+            "InterviewCoach": "InterviewCoach",
             "AnalysisAgent": "AnalysisAgent",
             "ReportAgent": "ReportAgent",
             "ResumeParser": "ResumeParser",
