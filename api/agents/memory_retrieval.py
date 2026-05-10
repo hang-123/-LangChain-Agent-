@@ -37,6 +37,30 @@ async def memory_retrieval_node(state: dict[str, Any]) -> dict[str, Any]:
     stm_store = build_conversation_memory_store()
     ltm_store = build_ltm_store()
 
+    # Build vector_search_fn if pgvector is available on LTM store
+    vector_search_fn = None
+    if ltm_store is not None and hasattr(ltm_store, 'search_by_vector'):
+        async def _vector_search(q: str, uid: str, k: int) -> list:
+            from api.core.memory.models import LongTermMemory, MemoryHit, MemoryType, SourceType
+            rows = await ltm_store.search_by_vector(q, uid, k)
+            hits: list = []
+            for row in rows:
+                mem = LongTermMemory(
+                    memory_id=row["memory_id"],
+                    user_id=row["user_id"],
+                    memory_type=MemoryType.SEMANTIC,
+                    source_type=SourceType(row.get("source_type", "evaluation_report")),
+                    content=row["chunk_text"],
+                    importance=0.5,
+                )
+                hits.append(MemoryHit(
+                    memory=mem,
+                    score=row["score"],
+                    retrieval_method="vector",
+                ))
+            return hits
+        vector_search_fn = _vector_search
+
     memory_context = await retrieve_memories(
         ltm_store=ltm_store,
         stm_store=stm_store,
@@ -44,6 +68,7 @@ async def memory_retrieval_node(state: dict[str, Any]) -> dict[str, Any]:
         query_profile=query_profile,
         user_id=user_id,
         top_k=5,
+        vector_search_fn=vector_search_fn,  # pgvector semantic search
     )
 
     if memory_context.hit_count == 0:

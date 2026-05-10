@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import uuid
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -18,6 +19,13 @@ from api.core.memory.models import (
     SourceType,
 )
 from api.core.settings import get_settings
+
+try:
+    import psycopg
+    from pgvector.psycopg import register_vector
+except Exception:
+    psycopg = None  # type: ignore
+    register_vector = None  # type: ignore
 
 
 # -- Protocol --
@@ -86,8 +94,17 @@ class SqliteLongTermMemoryStore:
         conn.row_factory = sqlite3.Row
         return conn
 
+    @contextmanager
+    def _managed_connection(self):
+        conn = self._connect()
+        try:
+            with conn:
+                yield conn
+        finally:
+            conn.close()
+
     def _initialize(self) -> None:
-        with self._connect() as conn:
+        with self._managed_connection() as conn:
             conn.executescript(
                 """
                 CREATE TABLE IF NOT EXISTS long_term_memories (
@@ -127,7 +144,7 @@ class SqliteLongTermMemoryStore:
     async def save(self, memory: LongTermMemory) -> str:
         now = utc_now_iso()
         memory_id = memory.memory_id or f"mem-{uuid.uuid4().hex[:16]}"
-        with self._connect() as conn:
+        with self._managed_connection() as conn:
             conn.execute(
                 "INSERT OR REPLACE INTO long_term_memories "
                 "(memory_id, user_id, memory_type, source_type, content, "
@@ -148,10 +165,25 @@ class SqliteLongTermMemoryStore:
                     memory.expires_at,
                 ),
             )
+        # Try to store embedding for pgvector semantic search (fire-and-forget)
+        if memory.content.strip():
+            import asyncio as _asyncio
+            try:
+                loop = _asyncio.get_running_loop()
+                loop.create_task(
+                    self.upsert_memory_embedding(
+                        memory_id=memory_id,
+                        user_id=memory.user_id,
+                        chunk_text=memory.content[:2000],
+                        source_type=memory.source_type.value,
+                    )
+                )
+            except RuntimeError:
+                pass
         return memory_id
 
     async def get(self, memory_id: str) -> LongTermMemory | None:
-        with self._connect() as conn:
+        with self._managed_connection() as conn:
             row = conn.execute(
                 "SELECT * FROM long_term_memories WHERE memory_id = ?",
                 (memory_id,),
@@ -183,13 +215,13 @@ class SqliteLongTermMemoryStore:
         query += " ORDER BY importance DESC, created_at DESC LIMIT ?"
         params.append(limit)
 
-        with self._connect() as conn:
+        with self._managed_connection() as conn:
             rows = conn.execute(query, params).fetchall()
         return [m for row in rows if (m := self._row_to_memory(row)) is not None]
 
     async def update_access(self, memory_id: str) -> None:
         now = utc_now_iso()
-        with self._connect() as conn:
+        with self._managed_connection() as conn:
             conn.execute(
                 "UPDATE long_term_memories SET access_count = access_count + 1, "
                 "last_accessed_at = ? WHERE memory_id = ?",
@@ -198,11 +230,11 @@ class SqliteLongTermMemoryStore:
 
     async def delete(self, memory_id: str) -> bool:
         now = utc_now_iso()
-        with self._connect() as conn:
+        with self._managed_connection() as conn:
             cur = conn.execute(
                 "UPDATE long_term_memories SET importance = 0.0, "
-                "expires_at = ? WHERE memory_id = ?",
-                (now, memory_id),
+                "expires_at = ?, last_accessed_at = ? WHERE memory_id = ?",
+                (now, now, memory_id),
             )
             return cur.rowcount > 0
 
@@ -212,7 +244,7 @@ class SqliteLongTermMemoryStore:
         For memories with access_count == 0: importance *= decay_factor.
         For frequently accessed memories: importance = min(1.0, importance * 1.1).
         """
-        with self._connect() as conn:
+        with self._managed_connection() as conn:
             # Decay unaccessed memories
             cur = conn.execute(
                 "UPDATE long_term_memories "
@@ -232,7 +264,7 @@ class SqliteLongTermMemoryStore:
 
     async def expire(self, user_id: str) -> int:
         """Remove memories past expires_at or with importance < 0.1."""
-        with self._connect() as conn:
+        with self._managed_connection() as conn:
             cur = conn.execute(
                 "DELETE FROM long_term_memories "
                 "WHERE user_id = ? AND importance < 0.1 "
@@ -242,7 +274,7 @@ class SqliteLongTermMemoryStore:
         return cur.rowcount
 
     async def count_by_user(self, user_id: str) -> int:
-        with self._connect() as conn:
+        with self._managed_connection() as conn:
             row = conn.execute(
                 "SELECT COUNT(*) FROM long_term_memories WHERE user_id = ?",
                 (user_id,),
@@ -252,7 +284,7 @@ class SqliteLongTermMemoryStore:
     async def save_embedding(self, emb: MemoryEmbedding) -> None:
         """Store embedding metadata (SQLite-only, no vector index)."""
         now = utc_now_iso()
-        with self._connect() as conn:
+        with self._managed_connection() as conn:
             conn.execute(
                 "INSERT OR REPLACE INTO memory_embeddings_sqlite "
                 "(memory_id, user_id, chunk_text, source_type, created_at) "
@@ -266,10 +298,132 @@ class SqliteLongTermMemoryStore:
                 ),
             )
 
+    # -- pgvector support (optional, gracefully degrades if not configured) --
+
+    def _pg_connect(self):
+        """Connect to pgvector for LTM semantic search."""
+        from api.core.settings import get_settings
+        settings = get_settings()
+        url = str(settings.ltm_database_url or "").strip()
+        if not url or psycopg is None:
+            return None
+        conn = psycopg.connect(url)
+        if register_vector is not None:
+            register_vector(conn)
+        return conn
+
+    def _ensure_pgvector_table(self) -> bool:
+        """Create pgvector memory_embeddings table if not exists."""
+        conn = self._pg_connect()
+        if conn is None:
+            return False
+        try:
+            with conn.cursor() as cur:
+                cur.execute("CREATE EXTENSION IF NOT EXISTS vector")
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS memory_embeddings (
+                        memory_id TEXT PRIMARY KEY,
+                        user_id TEXT NOT NULL,
+                        chunk_text TEXT NOT NULL,
+                        source_type TEXT NOT NULL,
+                        embedding vector(1536) NOT NULL,
+                        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+                    )
+                """)
+                cur.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_mem_embeddings_user "
+                    "ON memory_embeddings(user_id)"
+                )
+                cur.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_mem_embeddings_vector "
+                    "ON memory_embeddings USING ivfflat (embedding vector_cosine_ops)"
+                )
+            conn.commit()
+            return True
+        except Exception:
+            return False
+        finally:
+            conn.close()
+
+    async def search_by_vector(
+        self, query: str, user_id: str, top_k: int = 10
+    ) -> list[dict[str, Any]]:
+        """Vector semantic search over memory embeddings using pgvector."""
+        from api.core.llm import embed_query
+
+        conn = self._pg_connect()
+        if conn is None:
+            return []
+
+        try:
+            embedding = await embed_query(query)
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT memory_id, user_id, chunk_text, source_type,
+                           1 - (embedding <=> %s::vector) AS score
+                    FROM memory_embeddings
+                    WHERE user_id = %s
+                    ORDER BY embedding <=> %s::vector
+                    LIMIT %s
+                    """,
+                    (embedding, user_id, embedding, int(top_k)),
+                )
+                rows = cur.fetchall()
+            return [
+                {
+                    "memory_id": row[0],
+                    "user_id": row[1],
+                    "chunk_text": row[2],
+                    "source_type": row[3],
+                    "score": float(row[4] or 0.0),
+                }
+                for row in rows
+            ]
+        except Exception:
+            return []
+        finally:
+            conn.close()
+
+    async def upsert_memory_embedding(
+        self, memory_id: str, user_id: str, chunk_text: str, source_type: str
+    ) -> bool:
+        """Store a memory embedding in pgvector."""
+        from api.core.llm import embed_query
+
+        if not self._ensure_pgvector_table():
+            return False
+
+        try:
+            embedding = await embed_query(chunk_text)
+            conn = self._pg_connect()
+            if conn is None:
+                return False
+            try:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        INSERT INTO memory_embeddings (memory_id, user_id, chunk_text, source_type, embedding)
+                        VALUES (%s, %s, %s, %s, %s)
+                        ON CONFLICT (memory_id) DO UPDATE SET
+                            chunk_text = excluded.chunk_text,
+                            embedding = excluded.embedding
+                        """,
+                        (memory_id, user_id, chunk_text, source_type, embedding),
+                    )
+                conn.commit()
+                return True
+            finally:
+                conn.close()
+        except Exception:
+            return False
+
     def _row_to_memory(self, row: Any) -> LongTermMemory | None:
         if row is None:
             return None
         try:
+            importance = row["importance"]
+            access_count = row["access_count"]
             return LongTermMemory(
                 memory_id=str(row["memory_id"]),
                 user_id=str(row["user_id"]),
@@ -277,8 +431,8 @@ class SqliteLongTermMemoryStore:
                 source_type=SourceType(str(row["source_type"])),
                 content=str(row["content"]),
                 structured_data=json.loads(str(row["structured_data"] or "{}")),
-                importance=float(row["importance"] or 0.5),
-                access_count=int(row["access_count"] or 0),
+                importance=float(0.5 if importance is None else importance),
+                access_count=int(0 if access_count is None else access_count),
                 last_accessed_at=str(row["last_accessed_at"] or ""),
                 created_at=str(row["created_at"] or ""),
                 expires_at=str(row["expires_at"]) if row["expires_at"] else None,

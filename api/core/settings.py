@@ -45,6 +45,8 @@ class Settings(BaseSettings):
     memory_backend: str = Field(default="auto", validation_alias=AliasChoices("MEMORY_BACKEND"))
     enable_ltm: bool = Field(default=False, validation_alias=AliasChoices("ENABLE_LTM"))
     memory_decay_days: int = Field(default=30, validation_alias=AliasChoices("MEMORY_DECAY_DAYS"))
+    # LTM pgvector
+    ltm_database_url: str = Field(default="", validation_alias=AliasChoices("LTM_DATABASE_URL"))
     # Phase 2: Agent/Tool config
     enable_legitimacy_scorer: bool = Field(default=True, validation_alias=AliasChoices("ENABLE_LEGITIMACY_SCORER"))
     enable_archetype_detector: bool = Field(default=True, validation_alias=AliasChoices("ENABLE_ARCHETYPE_DETECTOR"))
