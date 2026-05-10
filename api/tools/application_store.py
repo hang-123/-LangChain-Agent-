@@ -5,6 +5,8 @@ Pure deterministic tool, 0 LLM. Uses SQLite for persistence.
 
 from __future__ import annotations
 
+import json
+import os
 import time as _time
 import uuid
 from datetime import datetime, timezone
@@ -56,7 +58,6 @@ class ApplicationStore:
         self.conn: aiosqlite.Connection | None = None
 
     async def initialize(self) -> None:
-        import os
         dir_path = os.path.dirname(self.db_path)
         if dir_path:
             os.makedirs(dir_path, exist_ok=True)
@@ -124,7 +125,7 @@ class ApplicationStore:
         await self.conn.commit()
 
         result = await self.get_application(app_id)
-        return result if result is not None else {}
+        return result
 
     async def update_status(self, application_id: str, new_status: str) -> dict[str, Any]:
         if not self.conn:
@@ -149,7 +150,7 @@ class ApplicationStore:
         await self.conn.commit()
 
         result = await self.get_application(application_id)
-        return result if result is not None else {}
+        return result
 
     async def append_note(self, application_id: str, content: str) -> dict[str, Any]:
         if not self.conn:
@@ -159,7 +160,6 @@ class ApplicationStore:
         if not current:
             return {"ok": False, "error_code": "not_found", "message": f"Application {application_id} not found"}
 
-        import json
         notes = list(current.get("notes") or [])
         note_id = f"note_{uuid.uuid4().hex[:8]}"
         notes.append({
@@ -176,9 +176,9 @@ class ApplicationStore:
         await self.conn.commit()
 
         result = await self.get_application(application_id)
-        return result if result is not None else {}
+        return result
 
-    async def get_application(self, application_id: str) -> dict[str, Any] | None:
+    async def get_application(self, application_id: str) -> dict[str, Any]:
         if not self.conn:
             await self.initialize()
 
@@ -220,7 +220,6 @@ class ApplicationStore:
 
     @staticmethod
     def _row_to_dict(row: aiosqlite.Row) -> dict[str, Any]:
-        import json
         d = dict(row)
         try:
             d["notes"] = json.loads(d.get("notes_json", "[]"))
