@@ -681,17 +681,20 @@ class ApplicationRecord(BaseModel):
     last_updated_at: str = ""
 
 
+ApplicationStoreOperation = Literal[
+    "create_application", "update_status", "append_note",
+    "list_applications", "get_application",
+]
+
+
 class ApplicationStoreRequest(BaseModel):
-    operation: Literal[
-        "create_application", "update_status", "append_note",
-        "list_applications", "get_application",
-    ]
+    operation: ApplicationStoreOperation
     payload: dict[str, Any] = Field(default_factory=dict)
 
 
 class ApplicationStoreResponse(BaseModel):
     ok: bool = True
-    application_record: dict[str, Any] | None = None
-    application_records: list[dict[str, Any]] | None = None
+    application_record: ApplicationRecord | None = None
+    application_records: list[ApplicationRecord] | None = None
     error_code: str = ""
     message: str = ""
