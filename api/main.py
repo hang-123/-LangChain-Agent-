@@ -95,10 +95,12 @@ class ResearchRunResponse(BaseModel):
 
 class ResearchCaseRunRequest(BaseModel):
     case_id: str = Field(..., min_length=3)
+    phase: str = Field(default="2", description="Graph phase: '1' for legacy, '2' for Phase 2")
 
 
 class EvalRunRequest(BaseModel):
     case_ids: list[str] = Field(default_factory=list)
+    phase: str = Field(default="2", description="Graph phase: '1' for legacy, '2' for Phase 2")
 
 
 app = FastAPI(
@@ -178,6 +180,9 @@ async def run_research(payload: ResearchRunRequest) -> ResearchRunResponse:
                 resume_evidence=list(payload.resume_evidence or []),
                 job_posting=dict(payload.job_posting or {}),
                 match_assessment=dict(payload.match_assessment or {}),
+                raw_jd_text=str(payload.raw_jd_text or ""),
+                resume_file=dict(payload.resume_file or {}),
+                offer_list=list(payload.offer_list or []),
             )
             async for _ in session.stream_events():
                 pass
@@ -242,13 +247,17 @@ async def run_research_case(payload: ResearchCaseRunRequest) -> ResearchRunRespo
         "http.research.case_run",
         {"http.route": "/api/research/cases/run", "research.case_id": payload.case_id},
     ):
+        graph = _get_graph(phase=payload.phase or "2")
         session = ResearchExecutionSession(
-            _graph,
+            graph,
             target.query,
             research_case=target.model_dump(),
             candidate_profile=target.candidate_profile or {},
             resume_evidence=target.resume_evidence or [],
             user_id=str((target.candidate_profile or {}).get("candidate_id") or "").strip(),
+            raw_jd_text=str(getattr(target, "raw_jd_text", "") or ""),
+            resume_file=dict(getattr(target, "resume_file", {}) or {}),
+            offer_list=list(getattr(target, "offer_list", []) or []),
         )
         async for _ in session.stream_events():
             pass
@@ -291,8 +300,9 @@ async def run_eval_suite(payload: EvalRunRequest) -> EvalSuiteSummary:
         results: list[CaseEvaluation] = []
         for case in selected:
             _repository.save_research_case(case)
+            graph = _get_graph(phase=payload.phase or "2")
             session = ResearchExecutionSession(
-                _graph,
+                graph,
                 case.query,
                 research_case=case.model_dump(),
                 candidate_profile=case.candidate_profile or {},
@@ -322,6 +332,9 @@ async def _stream_research_response(payload: ResearchRunRequest) -> StreamingRes
                 resume_evidence=list(payload.resume_evidence or []),
                 job_posting=dict(payload.job_posting or {}),
                 match_assessment=dict(payload.match_assessment or {}),
+                raw_jd_text=str(payload.raw_jd_text or ""),
+                resume_file=dict(payload.resume_file or {}),
+                offer_list=list(payload.offer_list or []),
             )
             try:
                 async for event in session.stream_events():
