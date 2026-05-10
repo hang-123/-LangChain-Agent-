@@ -243,6 +243,76 @@ def _score_resume(case: ResearchCase, final_state: dict[str, Any]) -> tuple[int,
     return max(0, score), failures
 
 
+def _score_interview(case: dict, state: dict) -> int:
+    """Score interview prep quality per spec 32.
+
+    Dimensions:
+    - question_relevance: questions match expected role keywords
+    - question_diversity: covers behavioral / technical / project_deep_dive
+    - evidence_grounding: questions bound to evidence_refs
+    - actionability: practice advice present
+
+    Returns score 0-100.
+    """
+    gt = dict(case.get("interview_ground_truth") or {})
+    prep_pack = dict(state.get("prep_pack") or {})
+
+    if not prep_pack:
+        return 0
+
+    behavioral = list(prep_pack.get("behavioral_questions") or [])
+    technical = list(prep_pack.get("technical_questions") or [])
+    deep_dive = list(prep_pack.get("project_deep_dive") or [])
+    risk_qs = list(prep_pack.get("risk_questions") or [])
+    advice = list(prep_pack.get("practice_advice") or [])
+
+    penalties = 0
+
+    # ── question_relevance (max -25) ──
+    expected_keywords = gt.get("expected_role_keywords", [])
+    if expected_keywords:
+        all_qs = behavioral + technical + deep_dive + risk_qs
+        all_text = " ".join(
+            q.get("question", "") + " " + q.get("answer_framework", "")
+            for q in all_qs
+        ).lower()
+        keyword_hits = sum(1 for kw in expected_keywords if kw.lower() in all_text)
+        if keyword_hits < len(expected_keywords):
+            penalties += int(25 * (1 - keyword_hits / len(expected_keywords)))
+
+    # ── question_diversity (max -30) ──
+    min_behavioral = gt.get("min_behavioral_questions", 2)
+    min_technical = gt.get("min_technical_questions", 1)
+    min_deep_dive = gt.get("min_project_deep_dive", 1)
+
+    if len(behavioral) < min_behavioral:
+        penalties += 10 * (min_behavioral - len(behavioral))
+    if len(technical) < min_technical:
+        penalties += 10 * (min_technical - len(technical))
+    if len(deep_dive) < min_deep_dive:
+        penalties += 10 * (min_deep_dive - len(deep_dive))
+
+    # ── evidence_grounding (max -25) ──
+    all_with_refs = [q for q in behavioral + technical + deep_dive
+                     if q.get("evidence_refs") and len(q.get("evidence_refs", [])) > 0]
+    total_qs = len(behavioral) + len(technical) + len(deep_dive)
+    if total_qs > 0:
+        grounding_ratio = len(all_with_refs) / total_qs
+        if grounding_ratio < 0.5:
+            penalties += int(25 * (1 - grounding_ratio))
+
+    # ── actionability (max -10) ──
+    if len(advice) < 2:
+        penalties += 5 * (2 - len(advice))
+
+    # ── risk questions (max -10) ──
+    required_risk = gt.get("required_risk_questions", 0)
+    if len(risk_qs) < required_risk:
+        penalties += 10 * (required_risk - len(risk_qs))
+
+    return max(0, 100 - penalties)
+
+
 def score_case_result(case: ResearchCase, final_state: dict[str, Any]) -> CaseEvaluation:
     policy = coerce_policy(final_state.get("policy"))
     eval_policy = policy.eval_policy
@@ -258,6 +328,8 @@ def score_case_result(case: ResearchCase, final_state: dict[str, Any]) -> CaseEv
     report_score, report_failures = _score_report_compliance(case, final_state)
     matching_score, matching_failures = _score_matching(case, final_state)
     resume_score, resume_failures = _score_resume(case, final_state)
+    interview_score = _score_interview(case.model_dump(), final_state)
+    routing_score = 100  # routing scorer not yet implemented; default pass
     failures.extend(retrieval_failures + attribution_failures + insight_failures + report_failures + matching_failures + resume_failures)
 
     quality_mode = str(final_state.get("quality_mode") or "normal")
@@ -271,6 +343,8 @@ def score_case_result(case: ResearchCase, final_state: dict[str, Any]) -> CaseEv
         report_compliance=report_score,
         matching=matching_score,
         resume=resume_score,
+        interview=interview_score,
+        routing=routing_score,
     )
 
     thresholds_failed = any(
@@ -284,9 +358,22 @@ def score_case_result(case: ResearchCase, final_state: dict[str, Any]) -> CaseEv
         ]
     )
 
-    average_score = round(
-        (retrieval_score + attribution_score + insight_score + report_score + matching_score + resume_score) / 6,
+    # Only include relevant dimensions in the average
+    case_dict = case.model_dump()
+    has_interview = bool(case_dict.get("interview_ground_truth")) or bool(
+        final_state.get("prep_pack", {}).get("behavioral_questions")
     )
+    has_routing = bool(case_dict.get("routing_ground_truth"))
+
+    scores_for_avg = [
+        retrieval_score, attribution_score, insight_score,
+        report_score, matching_score, resume_score,
+    ]
+    if has_interview:
+        scores_for_avg.append(interview_score)
+    if has_routing:
+        scores_for_avg.append(routing_score)
+    average_score = round(sum(scores_for_avg) / len(scores_for_avg))
     return CaseEvaluation(
         case_id=case.case_id,
         passed=(not failures) and (not thresholds_failed),
