@@ -71,14 +71,14 @@ async def memory_retrieval_node(state: dict[str, Any]) -> dict[str, Any]:
     })
 
     # Append formatted memory context to the shared context list
-    context = list(state.get("context") or [])
+    new_context: list[str] = []
     if memory_context.formatted_text:
-        context.append(memory_context.formatted_text)
+        new_context.append(memory_context.formatted_text)
 
     return {
         "working_memory": working_memory,
         "memory_hits": memory_hits,
-        "context": context,
+        "context": new_context,
     }
 
 

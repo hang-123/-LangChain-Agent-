@@ -184,7 +184,6 @@ async def run_analysis_agent(state: dict[str, Any]) -> dict[str, Any]:
 
     Each phase tries LLM first, falls back to deterministic heuristic on failure.
     """
-    context = list(state.get("context") or [])
     query = str(state.get("query") or "").strip()
     intent = str(state.get("intent") or "general")
     insights = dict(state.get("insights") or {})
@@ -195,6 +194,7 @@ async def run_analysis_agent(state: dict[str, Any]) -> dict[str, Any]:
     role = str(insights.get("role") or profile.get("role") or "")
 
     # Phase 2: read working_memory from upstream tools for enriched context
+    new_context: list[str] = []
     working_memory = list(state.get("working_memory") or [])
     tool_context_parts: list[str] = []
     for entry in working_memory:
@@ -219,7 +219,7 @@ async def run_analysis_agent(state: dict[str, Any]) -> dict[str, Any]:
 
     if tool_context_parts:
         tool_context_summary = "上游工具摘要：\n" + "\n".join(f"- {p}" for p in tool_context_parts)
-        context.append(tool_context_summary)
+        new_context.append(tool_context_summary)
 
     # ── Phase 1: Job-side analysis ──
     heuristic_q = _heuristic_query_response(
@@ -293,7 +293,7 @@ async def run_analysis_agent(state: dict[str, Any]) -> dict[str, Any]:
     merged_insights["fallback_flags"] = fallback_flags
 
     return {
-        "context": context,
+        "context": new_context,
         "insights": merged_insights,
         "working_set_analysis": {
             "query_result": q_result,
