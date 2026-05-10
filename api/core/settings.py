@@ -51,6 +51,7 @@ class Settings(BaseSettings):
     report_temperature: float = Field(default=0.5, validation_alias=AliasChoices("REPORT_TEMPERATURE"))
     analysis_temperature: float = Field(default=0.3, validation_alias=AliasChoices("ANALYSIS_TEMPERATURE"))
     enable_report_self_review: bool = Field(default=True, validation_alias=AliasChoices("ENABLE_REPORT_SELF_REVIEW"))
+    enable_report_llm_self_review: bool = Field(default=True, validation_alias=AliasChoices("ENABLE_REPORT_LLM_SELF_REVIEW"))
     search_cache_ttl: int = Field(default=600, validation_alias=AliasChoices("SEARCH_CACHE_TTL"))
     enable_otel: bool = Field(default=False, validation_alias=AliasChoices("ENABLE_OTEL", "OTEL_ENABLED"))
     otel_exporter: str = Field(default="none", validation_alias=AliasChoices("OTEL_EXPORTER"))
