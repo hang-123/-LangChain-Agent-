@@ -99,8 +99,6 @@ def _build_job_snapshot(
             "coverage": "partial" if evidence_items else "minimal",
             "ambiguity_notes": [] if parsed_jd.get("company_name") else ["未基于真实JD，由证据推断"],
         },
-        "archetype_detection": archetype_detection,
-        "legitimacy_assessment": legitimacy_assessment,
     }
 
 
@@ -184,6 +182,60 @@ def _build_legitimacy_assessment(  # noqa: C901
     }
 
 
+def _dedupe_nonempty(items: list[str], *, limit: int = 4) -> list[str]:
+    seen: set[str] = set()
+    result: list[str] = []
+    for item in items:
+        clean = str(item or "").strip()
+        if not clean or clean in seen:
+            continue
+        seen.add(clean)
+        result.append(clean)
+        if len(result) >= limit:
+            break
+    return result
+
+
+def _extract_external_signals(
+    evidence_items: list[dict[str, Any]],
+    job_snapshot: dict[str, Any],
+    legitimacy_assessment: dict[str, Any],
+) -> tuple[list[str], list[str], list[str]]:
+    company_signals: list[str] = []
+    interview_signals: list[str] = []
+    risk_flags: list[str] = []
+
+    ambiguity_notes = list((job_snapshot.get("evidence_quality") or {}).get("ambiguity_notes") or [])
+    risk_flags.extend(str(note) for note in ambiguity_notes if str(note).strip())
+
+    tier = str(legitimacy_assessment.get("tier") or "")
+    if tier == "Suspicious":
+        risk_flags.append("岗位合法性存在明显风险，建议投递前二次确认。")
+    elif tier == "Proceed with Caution":
+        risk_flags.append("岗位信号混合，建议结合官网或 HR 信息再确认。")
+
+    for signal in legitimacy_assessment.get("layoff_signals") or []:
+        risk_flags.append(str(signal))
+
+    for item in evidence_items:
+        source_class = str(item.get("source_class") or "")
+        title = str(item.get("title") or "").strip()
+        snippet = str(item.get("snippet") or "").strip()
+        text = title or snippet
+        if not text:
+            continue
+        if source_class in {"company_profile", "salary_culture", "tech_stack"}:
+            company_signals.append(text[:80])
+        if source_class == "interview":
+            interview_signals.append(text[:80])
+
+    return (
+        _dedupe_nonempty(company_signals),
+        _dedupe_nonempty(interview_signals),
+        _dedupe_nonempty(risk_flags),
+    )
+
+
 async def run_job_analyzer(state: dict[str, Any]) -> dict[str, Any]:
     """JobAnalyzer Tool — unified job analysis entry point."""
     settings = get_settings()
@@ -235,6 +287,12 @@ async def run_job_analyzer(state: dict[str, Any]) -> dict[str, Any]:
     )
 
     # Build ExternalEvidencePack from evidence_items
+    company_signals, interview_signals, risk_flags = _extract_external_signals(
+        evidence_items,
+        job_snapshot,
+        legitimacy_assessment,
+    )
+
     external_evidence_pack = {
         "evidence_pack_id": f"jep_{job_snapshot['job_id']}",
         "job_id": job_snapshot["job_id"],
@@ -248,10 +306,25 @@ async def run_job_analyzer(state: dict[str, Any]) -> dict[str, Any]:
             }
             for i, e in enumerate(evidence_items[:10])
         ],
-        "company_signals": [],
-        "interview_signals": [],
-        "risk_flags": [],
+        "company_signals": company_signals,
+        "interview_signals": interview_signals,
+        "risk_flags": risk_flags,
     }
+
+    # Phase 2: working memory entry
+    working_memory = list(state.get("working_memory") or [])
+    working_memory.append({
+        "source": "job_analyzer",
+        "summary": {
+            "job_snapshot_id": job_snapshot.get("job_snapshot_id", ""),
+            "job_id": job_snapshot.get("job_id", ""),
+            "requirement_count": len(job_snapshot.get("job_requirements", [])),
+            "archetype": str(archetype_detection.get("primary", "")),
+            "legitimacy_tier": str(legitimacy_assessment.get("tier", "")),
+            "has_external_evidence": bool(external_evidence_pack.get("sources")),
+        },
+        "timestamp": utc_now_iso(),
+    })
 
     return {
         "job_snapshot": job_snapshot,
@@ -259,5 +332,6 @@ async def run_job_analyzer(state: dict[str, Any]) -> dict[str, Any]:
         "archetype_detection": archetype_detection,
         "legitimacy_assessment": legitimacy_assessment,
         "adaptive_framing": adaptive_framing,
+        "working_memory": working_memory,
         "status": f"JobAnalyzer 完成岗位分析，合法性: {legitimacy_assessment.get('tier', 'unknown')}",
     }

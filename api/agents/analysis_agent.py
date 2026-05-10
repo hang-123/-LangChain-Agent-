@@ -194,6 +194,33 @@ async def run_analysis_agent(state: dict[str, Any]) -> dict[str, Any]:
     company = str(insights.get("company") or profile.get("company") or "")
     role = str(insights.get("role") or profile.get("role") or "")
 
+    # Phase 2: read working_memory from upstream tools for enriched context
+    working_memory = list(state.get("working_memory") or [])
+    tool_context_parts: list[str] = []
+    for entry in working_memory:
+        source = entry.get("source", "")
+        summary = entry.get("summary", {})
+        if source == "search_orchestrator":
+            tool_context_parts.append(
+                f"[检索结果] 共{summary.get('evidence_count', 0)}条证据，"
+                f"其中{summary.get('company_specific_count', 0)}条公司特异性证据"
+            )
+        elif source == "job_analyzer":
+            tool_context_parts.append(
+                f"[岗位分析] {summary.get('requirement_count', 0)}项要求，"
+                f"原型={summary.get('archetype', '')}，"
+                f"合法性={summary.get('legitimacy_tier', '')}"
+            )
+        elif source == "matching_engine":
+            tool_context_parts.append(
+                f"[匹配评估] 总分{summary.get('overall_score', 0)}，"
+                f"{summary.get('strength_count', 0)}优势/{summary.get('gap_count', 0)}差距/{summary.get('risk_count', 0)}风险"
+            )
+
+    if tool_context_parts:
+        tool_context_summary = "上游工具摘要：\n" + "\n".join(f"- {p}" for p in tool_context_parts)
+        context.append(tool_context_summary)
+
     # ── Phase 1: Job-side analysis ──
     heuristic_q = _heuristic_query_response(
         company=company, role=role, intent=intent, profile=profile,
@@ -266,6 +293,7 @@ async def run_analysis_agent(state: dict[str, Any]) -> dict[str, Any]:
     merged_insights["fallback_flags"] = fallback_flags
 
     return {
+        "context": context,
         "insights": merged_insights,
         "working_set_analysis": {
             "query_result": q_result,

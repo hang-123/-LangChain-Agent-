@@ -3,6 +3,7 @@ Migrated from api/agents/matching_agent.py."""
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from api.core.context_utils import unique_strings
@@ -47,7 +48,10 @@ def _match_requirement(
     if not target:
         return False, []
     matched_refs: list[str] = []
-    if target in candidate_skills or target in evidence_text:
+    target_in_evidence = target in candidate_skills or (
+        len(target) >= 3 and re.search(r'\b' + re.escape(target) + r'\b', evidence_text, re.IGNORECASE) is not None
+    )
+    if target_in_evidence:
         for item in resume_evidence:
             item_text = _normalize_token(str(item.get("text") or ""))
             skill_hits = {_normalize_token(str(skill)) for skill in item.get("normalized_skills") or []}
@@ -180,7 +184,23 @@ async def run_matching_engine(state: dict[str, Any]) -> dict[str, Any]:
         reasoning_notes=reasoning_notes,
         created_at=utc_now_iso(),
     )
+    # Phase 2: working memory entry
+    working_memory = list(state.get("working_memory") or [])
+    working_memory.append({
+        "source": "matching_engine",
+        "summary": {
+            "assessment_id": assessment.assessment_id,
+            "overall_score": assessment.overall_score,
+            "recommendation": str(assessment.recommendation),
+            "strength_count": len(assessment.strengths),
+            "gap_count": len(assessment.gaps),
+            "risk_count": len(assessment.risks),
+        },
+        "timestamp": utc_now_iso(),
+    })
+
     return {
         "match_assessment": assessment.model_dump(mode="json"),
+        "working_memory": working_memory,
         "status": f"MatchingEngine 完成匹配分析，建议：{assessment.recommendation}，综合分 {assessment.overall_score}。",
     }
