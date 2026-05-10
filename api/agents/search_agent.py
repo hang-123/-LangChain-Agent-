@@ -175,14 +175,50 @@ def _published_year_score(published: str) -> int:
 
 
 def _freshness_score(published: str) -> int:
-    score = _published_year_score(published)
-    if score == 3:
-        return 95
-    if score == 2:
-        return 85
-    if score == 1:
-        return 70
-    return 35
+    """Compute freshness score using spec 04 day-based decay.
+
+    freshness_score = max(0, 100 - days_since_ingestion * 2)
+    Falls back to year-based heuristic if published date cannot be parsed.
+    """
+    from datetime import datetime, timezone
+
+    if published and published != "未知":
+        for fmt in ("%Y-%m-%d", "%Y/%m/%d", "%Y-%m", "%Y/%m"):
+            try:
+                dt = datetime.strptime(published.strip()[:10], fmt)
+                days = max(0, (datetime.now(timezone.utc) - dt.replace(tzinfo=timezone.utc)).days)
+                return max(0, 100 - days * 2)
+            except (ValueError, IndexError):
+                continue
+
+    # Fallback: year-based heuristic
+    import re
+    match = re.search(r"(20\d{2})", str(published))
+    if match:
+        year = int(match.group(1))
+        current_year = datetime.now(timezone.utc).year
+        if year == current_year:
+            return 85
+        if year == current_year - 1:
+            return 65
+        if year == current_year - 2:
+            return 45
+        return 25
+    return 50  # Unknown date: neutral score
+
+
+def _apply_freshness_decay(quality_score: float, freshness_score: int) -> tuple[float, bool]:
+    """Apply freshness decay multiplier per spec 04 section 3.3.
+
+    Returns (adjusted_score, may_be_stale).
+    """
+    if freshness_score >= 80:
+        return quality_score, False
+    if freshness_score >= 60:
+        return quality_score * 0.85, False
+    if freshness_score >= 40:
+        return quality_score * 0.7, False
+    return quality_score * 0.5, True
 
 
 def _classify_source_tier(source: NormalizedSource, source_class: str, company_specific: bool) -> str:
@@ -393,6 +429,10 @@ def _build_evidence_item(
     freshness_score = _freshness_score(source.published)
     base_score = 55 + freshness_score // 4 + (10 if company_specific else 0) + (8 if source_class in {"company_profile", "jd"} else 0)
     quality_score = max(25, min(100, base_score))
+
+    # Apply freshness decay per spec 04 section 3.3
+    quality_score, may_be_stale = _apply_freshness_decay(quality_score, freshness_score)
+
     source_id = f"rag-source-{index}" if source.query == "rag_vector_search" else f"source-{index}"
     return {
         "source_id": source_id,
@@ -406,6 +446,7 @@ def _build_evidence_item(
         "company_specific": company_specific,
         "freshness_score": freshness_score,
         "quality_score": quality_score,
+        "may_be_stale": may_be_stale,
     }
 
 

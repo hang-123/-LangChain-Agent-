@@ -42,6 +42,7 @@ class RagChunk:
 class RagSearchHit:
     chunk: RagChunk
     score: float
+    updated_at: str = ""  # NEW: ISO timestamp for freshness decay
 
 
 class RagSearchStore(Protocol):
@@ -196,7 +197,8 @@ class RagStore:
                 cursor.execute(
                     """
                     SELECT chunk_id, document_id, source_type, title, url, text, metadata,
-                           1 - (embedding <=> %s) AS score
+                           1 - (embedding <=> %s) AS score,
+                           updated_at
                     FROM job_chunks
                     WHERE source_type = ANY(%s)
                     ORDER BY embedding <=> %s
@@ -207,7 +209,7 @@ class RagStore:
                 rows = cursor.fetchall()
         hits: list[RagSearchHit] = []
         for row in rows:
-            chunk_id, document_id, source_type, title, url, text, metadata, score = row
+            chunk_id, document_id, source_type, title, url, text, metadata, score, updated_at = row
             hits.append(
                 RagSearchHit(
                     chunk=RagChunk(
@@ -220,8 +222,41 @@ class RagStore:
                         metadata=dict(metadata or {}),
                     ),
                     score=float(score or 0.0),
+                    updated_at=str(updated_at or ""),
                 )
             )
+        return hits
+
+    async def search_with_freshness(
+        self, *, query: str, profile: dict[str, Any], top_k: int
+    ) -> list[RagSearchHit]:
+        """Search with freshness decay applied per spec 04 section 3.3."""
+        from datetime import datetime, timezone
+
+        hits = await self.search(query=query, profile=profile, top_k=top_k)
+        now = datetime.now(timezone.utc)
+
+        for hit in hits:
+            if not hit.updated_at:
+                continue
+            try:
+                updated_str = str(hit.updated_at)[:19]
+                updated = datetime.strptime(updated_str, "%Y-%m-%dT%H:%M:%S")
+                updated = updated.replace(tzinfo=timezone.utc)
+                days = max(0, (now - updated).days)
+                freshness = max(0, 100 - days * 2)
+
+                if freshness >= 80:
+                    pass  # No decay
+                elif freshness >= 60:
+                    object.__setattr__(hit, 'score', hit.score * 0.85)
+                elif freshness >= 40:
+                    object.__setattr__(hit, 'score', hit.score * 0.7)
+                else:
+                    object.__setattr__(hit, 'score', hit.score * 0.5)
+            except (ValueError, TypeError):
+                pass
+
         return hits
 
 
@@ -255,7 +290,7 @@ async def search_rag_sources(*, query: str, profile: dict[str, Any], top_k: int)
     return await safe_search_rag(store=store, query=query, profile=profile, top_k=top_k)
 
 
-def auto_writeback(evidence_items: list[dict[str, Any]], quality_threshold: int = 70) -> int:
+async def auto_writeback(evidence_items: list[dict[str, Any]], quality_threshold: int = 70) -> int:
     """Phase 2: Auto-writeback high-quality Tavily results to pgvector.
 
     Returns number of items written back.
@@ -283,13 +318,14 @@ def auto_writeback(evidence_items: list[dict[str, Any]], quality_threshold: int 
             continue
         doc_id = f"auto::{url}" if url else f"auto::{title}"
         try:
-            store.upsert(
-                doc_id=doc_id,
+            document = JobDocument(
+                document_id=doc_id,
                 source_type=source_type,
                 title=title,
-                content=snippet,
                 url=url,
+                content=snippet,
             )
+            await store.upsert_job_document(document)
             count += 1
         except Exception:
             continue
