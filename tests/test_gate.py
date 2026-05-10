@@ -79,6 +79,50 @@ class TestGateDowngraded:
         assert result.status == "downgraded"
         assert any("证据引用" in i.get("message", "") for i in result.issues)
 
+    def test_claim_coverage_below_threshold(self):
+        evidence = make_evidence_items(5, 3)
+        result = run_gate(
+            working_set={
+                "retrieval": {"evidence_items": evidence},
+                "analysis": {
+                    "claims": [{"claim_id": "c1", "evidence_refs": ["src_0"]}],
+                    "quality_metrics": {"claim_evidence_coverage": 50},
+                },
+            },
+            report_content="test report",
+        )
+        assert result.status == "downgraded"
+        assert any(i.get("rule") == "claim_evidence_coverage" for i in result.issues)
+
+    def test_action_plan_coverage_below_threshold(self):
+        evidence = make_evidence_items(5, 3)
+        result = run_gate(
+            working_set={
+                "retrieval": {"evidence_items": evidence},
+                "analysis": {
+                    "action_plan_items": [{"day": 1, "goal": "补准备"}],
+                    "action_plan_source_coverage": 40,
+                },
+            },
+            report_content="test report",
+        )
+        assert result.status == "downgraded"
+        assert any(i.get("rule") == "action_plan_source_coverage" for i in result.issues)
+
+    def test_missing_classes_downgrades(self):
+        evidence = make_evidence_items(5, 3)
+        result = run_gate(
+            working_set={
+                "retrieval": {
+                    "evidence_items": evidence,
+                    "retrieval_diagnostics": {"missing_classes": ["interview", "tech_stack"]},
+                },
+            },
+            report_content="test report",
+        )
+        assert result.status == "downgraded"
+        assert any(i.get("rule") == "missing_classes" for i in result.issues)
+
 
 class TestGateRejected:
     def test_forbidden_phrase_rejected(self):
@@ -119,7 +163,8 @@ class TestGateEdgeCases:
         """All expected check rules are listed in output."""
         result = run_gate(report_content="test")
         expected_rules = {"evidence_sufficiency", "company_specificity", "candidate_fact_boundary",
-                          "evidence_refs", "forbidden_phrases", "fiction_detection"}
+                          "evidence_refs", "claim_evidence_coverage", "action_plan_source_coverage",
+                          "missing_classes", "forbidden_phrases", "fiction_detection"}
         assert expected_rules == set(result.checked_rules)
 
     def test_output_is_gate_output_type(self):

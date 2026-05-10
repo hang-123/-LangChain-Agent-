@@ -56,6 +56,8 @@ class TestDetectMissing:
         state = build_initial_state("")
         missing = _detect_missing("wf_match_v2", state)
         assert "query" in missing
+        assert "candidate_profile" in missing
+        assert "resume_evidence" in missing
 
     def test_tailor_workflow_needs_profile(self):
         state = build_initial_state("改简历")
@@ -104,6 +106,18 @@ class TestSupervisorNode:
         result = await supervisor_node(state)
         assert "query_profile" in result
         assert isinstance(result["query_profile"], dict)
+
+    @pytest.mark.asyncio
+    async def test_supervisor_match_uses_deterministic_route_without_llm(self, monkeypatch):
+        async def _boom(_query: str):
+            raise AssertionError("LLM route should not be called for deterministic match")
+
+        monkeypatch.setattr("api.agents.supervisor._llm_route", _boom)
+        state = build_initial_state("帮我分析这个岗位是否匹配")
+        result = await supervisor_node(state)
+        assert result["intent"] == "match"
+        assert result["workflow_id"] == "wf_match_v2"
+        assert "candidate_profile" in result["missing_artifacts"]
 
     @pytest.mark.asyncio
     async def test_supervisor_returns_missing_artifacts(self):

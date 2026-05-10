@@ -10,11 +10,11 @@ from api.core.settings import get_settings
 class FakeGraph:
     async def astream_events(self, _state, version="v2"):
         assert version == "v2"
-        yield {"event": "on_node_start", "name": "IntentRouterNode", "metadata": {"langgraph_node": "IntentRouterNode"}}
+        yield {"event": "on_node_start", "name": "Supervisor", "metadata": {"langgraph_node": "Supervisor"}}
         yield {
             "event": "on_node_end",
-            "name": "IntentRouterNode",
-            "metadata": {"langgraph_node": "IntentRouterNode"},
+            "name": "Supervisor",
+            "metadata": {"langgraph_node": "Supervisor"},
             "data": {
                 "output": {
                     "intent": "general",
@@ -24,11 +24,11 @@ class FakeGraph:
                 }
             },
         }
-        yield {"event": "on_node_start", "name": "JobIntelligenceAgent", "metadata": {"langgraph_node": "JobIntelligenceAgent"}}
+        yield {"event": "on_node_start", "name": "JobAnalyzer", "metadata": {"langgraph_node": "JobAnalyzer"}}
         yield {
             "event": "on_node_end",
-            "name": "JobIntelligenceAgent",
-            "metadata": {"langgraph_node": "JobIntelligenceAgent"},
+            "name": "JobAnalyzer",
+            "metadata": {"langgraph_node": "JobAnalyzer"},
             "data": {
                 "output": {
                     "external_evidence_pack": {
@@ -45,11 +45,11 @@ class FakeGraph:
                 }
             },
         }
-        yield {"event": "on_node_start", "name": "MatchingAgent", "metadata": {"langgraph_node": "MatchingAgent"}}
+        yield {"event": "on_node_start", "name": "MatchingEngine", "metadata": {"langgraph_node": "MatchingEngine"}}
         yield {
             "event": "on_node_end",
-            "name": "MatchingAgent",
-            "metadata": {"langgraph_node": "MatchingAgent"},
+            "name": "MatchingEngine",
+            "metadata": {"langgraph_node": "MatchingEngine"},
             "data": {
                 "output": {
                     "match_assessment": {
@@ -63,11 +63,11 @@ class FakeGraph:
                 }
             },
         }
-        yield {"event": "on_node_start", "name": "ResumeTailorAgent", "metadata": {"langgraph_node": "ResumeTailorAgent"}}
+        yield {"event": "on_node_start", "name": "ResumeTailor", "metadata": {"langgraph_node": "ResumeTailor"}}
         yield {
             "event": "on_node_end",
-            "name": "ResumeTailorAgent",
-            "metadata": {"langgraph_node": "ResumeTailorAgent"},
+            "name": "ResumeTailor",
+            "metadata": {"langgraph_node": "ResumeTailor"},
             "data": {
                 "output": {
                     "tailor_plan": {

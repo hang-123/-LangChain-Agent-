@@ -58,7 +58,17 @@ def test_gate_passed():
         min_company_specific=0,
     )
     assert result.status == "passed"
-    assert len(result.checked_rules) == 6
+    assert {
+        "evidence_sufficiency",
+        "company_specificity",
+        "candidate_fact_boundary",
+        "evidence_refs",
+        "claim_evidence_coverage",
+        "action_plan_source_coverage",
+        "missing_classes",
+        "forbidden_phrases",
+        "fiction_detection",
+    } == set(result.checked_rules)
     print("✓ Gate passed OK")
 
 
