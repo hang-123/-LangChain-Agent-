@@ -22,6 +22,7 @@ from api.agents.memory_retrieval import memory_retrieval_node
 from api.agents.offer_evaluator import offer_evaluator_node
 from api.agents.search_agent import search_agent_node
 from api.core.prompts import ReviewAgentResponse
+from api.core.policy_loader import policy_from_state
 
 
 GRAPH_NODE_ORDER = [
@@ -122,10 +123,14 @@ def build_initial_state(
     resume_evidence: List[Dict[str, Any]] | None = None,
     job_posting: Dict[str, Any] | None = None,
     match_assessment: Dict[str, Any] | None = None,
+    raw_jd_text: str = "",
+    resume_file: Dict[str, Any] | None = None,
+    offer_list: List[Dict[str, Any]] | None = None,
     policy: Dict[str, Any] | None = None,
     run_manifest: Dict[str, Any] | None = None,
     research_case: Dict[str, Any] | None = None,
 ) -> AgentState:
+    resume_payload = dict(resume_file or {})
     return {
         "run_id": run_id,
         "query": query,
@@ -141,7 +146,6 @@ def build_initial_state(
         "evidence_items": [],
         "external_evidence_pack": {},
         "job_snapshot": {},
-        "match_assessment": {},
         "retrieval_diagnostics": {},
         "query_pack": [],
         "insights": {},
@@ -179,20 +183,20 @@ def build_initial_state(
         "missing_artifacts": [],
         "warnings": [],
         # Phase 2 tool fields
-        "raw_jd_text": "",
+        "raw_jd_text": str(raw_jd_text or ""),
         "prep_pack": {},
         "interview_prep_pack": {},
         "profile_completeness": 0.0,
         "profile_gaps": [],
         "verification_report": {},
         "offer_comparison": {},
-        "resume_file": {},
-        "resume_source_type": "",
-        "resume_raw_text": "",
-        "resume_content_bytes": None,
-        "resume_source_name": "",
-        "skip_parse": False,
-        "offer_list": [],
+        "resume_file": resume_payload,
+        "resume_source_type": str(resume_payload.get("source_type") or ""),
+        "resume_raw_text": str(resume_payload.get("raw_text") or ""),
+        "resume_content_bytes": resume_payload.get("content_bytes"),
+        "resume_source_name": str(resume_payload.get("source_name") or ""),
+        "skip_parse": bool(candidate_profile or resume_evidence),
+        "offer_list": list(offer_list or []),
         "offer_weights": {},
         # Working set analysis
         "working_set_analysis": {},
@@ -287,6 +291,7 @@ PHASE2_NODE_ORDER = [
     "ResumeParser",
     "InterviewCoach",
     "OfferEvaluator",
+    "ApplicationStore",
     "AnalysisAgent",
     "ReportAgent",
     "Gate",
@@ -313,7 +318,7 @@ PHASE2_WORKFLOWS: dict[str, list[str]] = {
         "OfferEvaluator", "ReportAgent", "Gate",
     ],
     "wf_application_followup_v1": [
-        "Gate",
+        "ApplicationStore", "Gate",
     ],
 }
 
@@ -330,6 +335,7 @@ def _resolve_node_fn(node_name: str) -> Any:
     from api.tools.resume_parser import run_resume_parser
     from api.tools.interview_coach import run_interview_coach
     from api.tools.offer_evaluator import run_offer_evaluator
+    from api.tools.application_store import run_application_store
 
     mapping: dict[str, Any] = {
         "Supervisor": supervisor_node,
@@ -341,6 +347,7 @@ def _resolve_node_fn(node_name: str) -> Any:
         "ResumeParser": run_resume_parser,
         "InterviewCoach": run_interview_coach,
         "OfferEvaluator": run_offer_evaluator,
+        "ApplicationStore": run_application_store,
         "AnalysisAgent": run_analysis_agent,
         "ReportAgent": report_agent_node,
         "Gate": _gate_node,
@@ -358,6 +365,7 @@ async def _gate_node(state: AgentState) -> dict[str, Any]:  # type: ignore[valid
             "candidate_profile": dict(state.get("candidate_profile") or {}),
             "resume_evidence": list(state.get("resume_evidence") or []),
         },
+        "policy": dict(state.get("policy") or {}),
     }
     working_set = {
         "retrieval": {"evidence_items": list(state.get("evidence_items") or [])},
@@ -377,11 +385,41 @@ async def _gate_node(state: AgentState) -> dict[str, Any]:  # type: ignore[valid
         report_content=str(state.get("report_content") or ""),
     )
 
+    verification_report = result.model_dump(mode="json")
+    review_feedback = _parse_review_feedback(state)
+    gate_root_cause = str(state.get("root_cause") or "")
+    retry_count = int(state.get("retry_count") or 0)
+
+    if review_feedback is not None and not review_feedback.passed:
+        verification_report["status"] = "rejected"
+        verification_report["issues"] = list(verification_report.get("issues") or []) + [
+            {
+                "rule": "report_self_review",
+                "status": "rejected",
+                "message": review_feedback.feedback_markdown,
+                "retry_target": review_feedback.retry_target,
+            }
+        ]
+        gate_root_cause = str(review_feedback.root_cause or gate_root_cause or "synthesis")
+    elif not gate_root_cause:
+        issue_rules = [str(issue.get("rule") or "") for issue in result.issues]
+        if any(rule in {"evidence_sufficiency", "company_specificity", "missing_classes"} for rule in issue_rules):
+            gate_root_cause = "retrieval"
+        elif any(rule in {"evidence_refs", "claim_evidence_coverage", "candidate_fact_boundary", "fiction_detection", "forbidden_phrases"} for rule in issue_rules):
+            gate_root_cause = "attribution"
+        elif any(rule == "action_plan_source_coverage" for rule in issue_rules):
+            gate_root_cause = "synthesis"
+
+    if verification_report.get("status") == "rejected":
+        retry_count += 1
+
     return {
-        "verification_report": result.model_dump(mode="json"),
-        "quality_mode": "conservative" if result.status == "downgraded" else ("normal" if result.status == "passed" else "fallback"),
-        "warning_message": "; ".join(i.get("message", "") for i in result.issues) if result.issues else "",
-        "status": f"Gate 校验完成: {result.status}",
+        "verification_report": verification_report,
+        "quality_mode": "conservative" if verification_report.get("status") == "downgraded" else ("normal" if verification_report.get("status") == "passed" else "fallback"),
+        "warning_message": "; ".join(i.get("message", "") for i in verification_report.get("issues", [])) if verification_report.get("issues") else "",
+        "root_cause": gate_root_cause,
+        "retry_count": retry_count,
+        "status": f"Gate 校验完成: {verification_report.get('status')}",
     }
 
 
@@ -412,6 +450,36 @@ def route_after_matching_engine(state: AgentState) -> str:  # type: ignore[valid
     return "AnalysisAgent"
 
 
+def _gate_retry_target(state: AgentState) -> str:
+    workflow_id = str(state.get("workflow_id") or "")
+    workflow_nodes = PHASE2_WORKFLOWS.get(workflow_id, PHASE2_WORKFLOWS["wf_match_v2"])
+    root_cause = str(state.get("root_cause") or "")
+
+    if root_cause == "retrieval":
+        if "SearchOrchestrator" in workflow_nodes:
+            return "SearchOrchestrator"
+        if "JobAnalyzer" in workflow_nodes:
+            return "JobAnalyzer"
+        return workflow_nodes[0]
+    if root_cause == "attribution":
+        return "AnalysisAgent" if "AnalysisAgent" in workflow_nodes else "ReportAgent"
+    return "ReportAgent"
+
+
+def route_after_gate(state: AgentState) -> str:  # type: ignore[valid-type]
+    verification_report = dict(state.get("verification_report") or {})
+    gate_status = str(verification_report.get("status") or "passed")
+    if gate_status != "rejected":
+        return END  # type: ignore[return-value]
+
+    policy = policy_from_state(state)
+    retry_count = int(state.get("retry_count") or 0)
+    if retry_count >= int(policy.retry_policy.max_retries or 0):
+        return END  # type: ignore[return-value]
+
+    return _gate_retry_target(state)
+
+
 def build_phase2_graph() -> Any:
     """Build the Phase 2 workflow-based graph with Supervisor routing.
 
@@ -434,6 +502,7 @@ def build_phase2_graph() -> Any:
     builder.add_node("ResumeParser", _resolve_node_fn("ResumeParser"))
     builder.add_node("InterviewCoach", _resolve_node_fn("InterviewCoach"))
     builder.add_node("OfferEvaluator", _resolve_node_fn("OfferEvaluator"))
+    builder.add_node("ApplicationStore", _resolve_node_fn("ApplicationStore"))
     builder.add_node("AnalysisAgent", _resolve_node_fn("AnalysisAgent"))
     builder.add_node("ReportAgent", _resolve_node_fn("ReportAgent"))
     builder.add_node("Gate", _resolve_node_fn("Gate"))
@@ -453,6 +522,7 @@ def build_phase2_graph() -> Any:
             "JobAnalyzer": "JobAnalyzer",
             "ResumeParser": "ResumeParser",
             "OfferEvaluator": "OfferEvaluator",
+            "ApplicationStore": "ApplicationStore",
             "Gate": "Gate",
         },
     )
@@ -479,13 +549,26 @@ def build_phase2_graph() -> Any:
     # Special paths that skip AnalysisAgent
     builder.add_edge("ResumeParser", "Gate")
     builder.add_edge("OfferEvaluator", "ReportAgent")
+    builder.add_edge("ApplicationStore", "Gate")
 
     # AnalysisAgent → ReportAgent → Gate
     builder.add_edge("AnalysisAgent", "ReportAgent")
     builder.add_edge("ReportAgent", "Gate")
 
-    # Gate → END
-    builder.add_edge("Gate", END)
+    # Gate → END or retry source node
+    builder.add_conditional_edges(
+        "Gate",
+        route_after_gate,
+        {
+            "SearchOrchestrator": "SearchOrchestrator",
+            "JobAnalyzer": "JobAnalyzer",
+            "AnalysisAgent": "AnalysisAgent",
+            "ReportAgent": "ReportAgent",
+            "ResumeParser": "ResumeParser",
+            "OfferEvaluator": "OfferEvaluator",
+            END: END,
+        },
+    )
 
     return builder.compile()
 
@@ -733,4 +816,5 @@ __all__ = [
     "route_after_supervisor",
     "route_after_memory_retrieval",
     "route_after_matching_engine",
+    "route_after_gate",
 ]
