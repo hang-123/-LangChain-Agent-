@@ -188,7 +188,7 @@ async def run_analysis_agent(state: dict[str, Any]) -> dict[str, Any]:
     intent = str(state.get("intent") or "general")
     insights = dict(state.get("insights") or {})
     profile = dict(state.get("query_profile") or {})
-    evidence_items = coerce_evidence_items(state.get("evidence_items"), context)
+    evidence_items = coerce_evidence_items(state.get("evidence_items"), [])
 
     company = str(insights.get("company") or profile.get("company") or "")
     role = str(insights.get("role") or profile.get("role") or "")
