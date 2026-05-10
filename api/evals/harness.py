@@ -313,6 +313,58 @@ def _score_interview(case: dict, state: dict) -> int:
     return max(0, 100 - penalties)
 
 
+def _score_routing(case: dict, state: dict) -> int:
+    """Score routing accuracy per spec 33.
+
+    Dimensions:
+    - intent_accuracy: correct primary intent identified
+    - workflow_accuracy: correct workflow selected
+    - missing_input_detection: missing inputs correctly flagged
+    - step_completeness: required steps executed
+
+    Returns score 0-100.
+    """
+    gt = dict(case.get("routing_ground_truth") or {})
+    penalties = 0
+
+    # ── intent_accuracy (max -30) ──
+    expected_intent = gt.get("expected_intent", "")
+    actual_intent = str(state.get("intent") or "")
+    if expected_intent and actual_intent != expected_intent:
+        penalties += 30
+
+    # ── workflow_accuracy (max -30) ──
+    expected_workflow = gt.get("expected_workflow", "")
+    actual_workflow = str(state.get("workflow_id") or "")
+    if expected_workflow and actual_workflow != expected_workflow:
+        penalties += 30
+
+    # ── missing_input_detection (max -20) ──
+    expected_missing = set(gt.get("expected_missing_artifacts", []))
+    actual_missing = set(state.get("missing_artifacts", []))
+    if expected_missing:
+        undetected = expected_missing - actual_missing
+        if undetected:
+            penalties += min(20, 10 * len(undetected))
+        false_missing = actual_missing - expected_missing
+        if false_missing:
+            penalties += min(10, 5 * len(false_missing))
+
+    # ── step_completeness (max -20) ──
+    required_steps = gt.get("required_steps", [])
+    if required_steps:
+        executed_nodes = {
+            entry.get("node", "")
+            for entry in state.get("run_trace", [])
+            if entry.get("phase") == "completed"
+        }
+        missing_steps = [s for s in required_steps if s not in executed_nodes]
+        if missing_steps:
+            penalties += min(20, 5 * len(missing_steps))
+
+    return max(0, 100 - penalties)
+
+
 def score_case_result(case: ResearchCase, final_state: dict[str, Any]) -> CaseEvaluation:
     policy = coerce_policy(final_state.get("policy"))
     eval_policy = policy.eval_policy
@@ -329,7 +381,7 @@ def score_case_result(case: ResearchCase, final_state: dict[str, Any]) -> CaseEv
     matching_score, matching_failures = _score_matching(case, final_state)
     resume_score, resume_failures = _score_resume(case, final_state)
     interview_score = _score_interview(case.model_dump(), final_state)
-    routing_score = 100  # routing scorer not yet implemented; default pass
+    routing_score = _score_routing(case.model_dump(), final_state)
     failures.extend(retrieval_failures + attribution_failures + insight_failures + report_failures + matching_failures + resume_failures)
 
     quality_mode = str(final_state.get("quality_mode") or "normal")

@@ -1,0 +1,46 @@
+[
+  {
+    "case_id": "routing_001",
+    "query": "帮我分析这个岗位的匹配度",
+    "expected_intent": "match",
+    "routing_ground_truth": {
+      "expected_intent": "match",
+      "expected_workflow": "wf_match_v2",
+      "expected_missing_artifacts": [],
+      "required_steps": ["SearchOrchestrator", "JobAnalyzer", "MatchingEngine"]
+    }
+  },
+  {
+    "case_id": "routing_002",
+    "query": "根据这个JD帮我改简历",
+    "expected_intent": "resume_tailor",
+    "routing_ground_truth": {
+      "expected_intent": "resume_tailor",
+      "expected_workflow": "wf_resume_tailor_v2",
+      "expected_missing_artifacts": ["candidate_profile"],
+      "required_steps": ["JobAnalyzer", "MatchingEngine", "ResumeTailor"]
+    }
+  },
+  {
+    "case_id": "routing_003",
+    "query": "我有两个offer帮我比较",
+    "expected_intent": "offer_compare",
+    "routing_ground_truth": {
+      "expected_intent": "offer_compare",
+      "expected_workflow": "wf_offer_compare",
+      "expected_missing_artifacts": [],
+      "required_steps": ["OfferEvaluator"]
+    }
+  },
+  {
+    "case_id": "routing_004",
+    "query": "帮我看看这个职位适不适合我",
+    "expected_intent": "match",
+    "routing_ground_truth": {
+      "expected_intent": "match",
+      "expected_workflow": "wf_match_v2",
+      "expected_missing_artifacts": [],
+      "required_steps": ["SearchOrchestrator", "JobAnalyzer", "MatchingEngine"]
+    }
+  }
+]
