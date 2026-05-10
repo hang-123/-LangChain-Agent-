@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 def test_phase2_graph_builds():
     """Verify the Phase 2 graph can be built without errors."""
-    from api.core.graph import build_phase2_graph, PHASE2_WORKFLOWS, PHASE2_NODE_ORDER, AgentState, build_initial_state
+    from api.core.graph import build_graph, PHASE2_WORKFLOWS, PHASE2_NODE_ORDER, AgentState, build_initial_state
 
     # Verify workflow definitions
     assert "wf_match_v2" in PHASE2_WORKFLOWS
@@ -39,14 +39,22 @@ def test_phase2_graph_builds():
     assert state["user_id"] == "test"
 
     # Build the graph
-    graph = build_phase2_graph()
+    graph = build_graph()
     assert graph is not None
     print("✓ Phase 2 graph built OK")
 
 
 def test_graph_routing():
     """Test the routing functions."""
-    from api.core.graph import route_after_supervisor, route_after_memory_retrieval, route_after_matching_engine, AgentState, build_initial_state
+    from api.core.graph import (
+        route_after_supervisor,
+        route_after_memory_retrieval,
+        route_after_matching_engine,
+        route_after_gate,
+        AgentState,
+        build_initial_state,
+    )
+    from langgraph.graph import END
 
     state = build_initial_state("分析匹配度")
 
@@ -83,6 +91,29 @@ def test_graph_routing():
     state["workflow_id"] = "wf_match_v2"
     result = route_after_matching_engine(state)
     assert result == "AnalysisAgent"
+
+    state["verification_report"] = {"status": "passed"}
+    result = route_after_gate(state)
+    assert result == END
+
+    state["verification_report"] = {"status": "rejected"}
+    state["root_cause"] = "retrieval"
+    state["retry_count"] = 1
+    result = route_after_gate(state)
+    assert result == "SearchOrchestrator"
+
+    state["root_cause"] = "attribution"
+    result = route_after_gate(state)
+    assert result == "AnalysisAgent"
+
+    state["workflow_id"] = "wf_offer_compare"
+    state["root_cause"] = "synthesis"
+    result = route_after_gate(state)
+    assert result == "ReportAgent"
+
+    state["retry_count"] = 99
+    result = route_after_gate(state)
+    assert result == END
     print("✓ Graph routing OK")
 
 
@@ -108,6 +139,31 @@ def test_gate_node_sync():
     vr = result["verification_report"]
     assert vr["status"] in ("passed", "downgraded", "rejected")
     print(f"✓ Gate node OK — status: {vr['status']}")
+
+
+def test_gate_node_respects_report_self_review():
+    """A failed ReportAgent self-review should force Gate rejection and increment retry_count."""
+    from api.core.graph import _gate_node, build_initial_state
+
+    state = build_initial_state("test")
+    state["report_content"] = "正常的分析报告，包含有效证据。"
+    state["evidence_items"] = [
+        {"company_specific": True},
+        {"company_specific": True},
+        {"company_specific": True},
+        {"company_specific": True},
+    ]
+    state["review_feedback"] = (
+        '{"passed": false, "quality_score": 41, "issues": ["报告过短"], '
+        '"issue_details": [], "feedback_markdown": "请补齐证据与结构", '
+        '"retry_target": "report", "root_cause": "synthesis"}'
+    )
+
+    result = asyncio.run(_gate_node(state))
+
+    assert result["verification_report"]["status"] == "rejected"
+    assert any(issue["rule"] == "report_self_review" for issue in result["verification_report"]["issues"])
+    assert result["retry_count"] == 1
 
 
 def test_supervisor_import():

@@ -7,40 +7,10 @@ from typing import Annotated, Any, Dict, List, TypedDict
 
 from langgraph.graph import END, StateGraph
 
-from api.agents.insight_agent import insight_agent_node
-from api.agents.intent_router import intent_router_node
-from api.agents.job_intelligence_agent import job_intelligence_agent_node
-from api.agents.matching_agent import matching_agent_node
-from api.agents.quality_gate import quality_gate_node
-from api.agents.query_agent import query_agent_node
 from api.agents.report_agent import report_agent_node
-from api.agents.resume_tailor_agent import resume_tailor_agent_node
-from api.agents.review_agent import review_agent_node
-from api.agents.archetype_detector import archetype_detector_node
-from api.agents.legitimacy_scorer import legitimacy_scorer_node
 from api.agents.memory_retrieval import memory_retrieval_node
-from api.agents.offer_evaluator import offer_evaluator_node
-from api.agents.search_agent import search_agent_node
 from api.core.prompts import ReviewAgentResponse
 from api.core.policy_loader import policy_from_state
-
-
-GRAPH_NODE_ORDER = [
-    "IntentRouterNode",
-    "MemoryRetrievalNode",
-    "SearchAgent",
-    "JobIntelligenceAgent",
-    "MatchingAgent",
-    "ResumeTailorAgent",
-    "ArchetypeDetector",
-    "LegitimacyScorer",
-    "OfferEvaluator",
-    "QueryAgent",
-    "InsightAgent",
-    "QualityGate",
-    "ReportAgent",
-    "ReviewAgent",
-]
 
 
 class AgentState(TypedDict):
@@ -56,16 +26,12 @@ class AgentState(TypedDict):
     query_profile: Dict[str, Any]
     context: Annotated[List[str], operator.add]
     evidence_items: List[Dict[str, Any]]
-    external_evidence_pack: Dict[str, Any]
     job_snapshot: Dict[str, Any]
     match_assessment: Dict[str, Any]
-    retrieval_diagnostics: Dict[str, Any]
-    query_pack: List[Dict[str, Any]]
     insights: Dict[str, Any]
     report_content: str
     tailor_plan: Dict[str, Any]
     resume_version: Dict[str, Any]
-    fact_check_report: Dict[str, Any]
     review_feedback: str
     retry_count: int
     quality_mode: str
@@ -84,12 +50,8 @@ class AgentState(TypedDict):
     working_memory: List[Dict[str, Any]]
     memory_hits: List[Dict[str, Any]]
     archetype_detection: Dict[str, Any]
-    adaptive_framing: Dict[str, Any]
     legitimacy_assessment: Dict[str, Any]
     offer_evaluation: Dict[str, Any]
-    gap_analysis: List[Dict[str, Any]]
-    level_strategy: Dict[str, Any]
-    score_interpretation: Dict[str, Any]
     # Phase 2 routing fields
     workflow_id: str
     missing_artifacts: List[str]
@@ -144,15 +106,11 @@ def build_initial_state(
         "query_profile": {},
         "context": [],
         "evidence_items": [],
-        "external_evidence_pack": {},
         "job_snapshot": {},
-        "retrieval_diagnostics": {},
-        "query_pack": [],
         "insights": {},
         "report_content": "",
         "tailor_plan": {},
         "resume_version": {},
-        "fact_check_report": {},
         "match_assessment": dict(match_assessment or {}),
         "review_feedback": "",
         "retry_count": 0,
@@ -172,12 +130,8 @@ def build_initial_state(
         "working_memory": [],
         "memory_hits": [],
         "archetype_detection": {},
-        "adaptive_framing": {},
         "legitimacy_assessment": {},
         "offer_evaluation": {},
-        "gap_analysis": [],
-        "level_strategy": {},
-        "score_interpretation": {},
         # Phase 2 routing fields
         "workflow_id": "",
         "missing_artifacts": [],
@@ -214,68 +168,6 @@ def _parse_review_feedback(state: AgentState) -> ReviewAgentResponse | None:
             return ReviewAgentResponse.model_validate(json.loads(review_raw))
         except Exception:
             return None
-
-
-def route_after_review(state: AgentState) -> str:
-    if "熔断" in str(state.get("status") or ""):
-        return END  # type: ignore[return-value]
-
-    parsed = _parse_review_feedback(state)
-    if parsed is None:
-        return "ReportAgent"
-    if parsed.passed:
-        return END  # type: ignore[return-value]
-    if parsed.retry_target == "query":
-        return "QueryAgent"
-    if parsed.retry_target == "insight":
-        return "InsightAgent"
-    return "ReportAgent"
-
-
-def build_career_research_graph() -> Any:
-    builder: StateGraph = StateGraph(AgentState)  # type: ignore[assignment]
-
-    builder.add_node("IntentRouterNode", intent_router_node)
-    builder.add_node("MemoryRetrievalNode", memory_retrieval_node)
-    builder.add_node("SearchAgent", search_agent_node)
-    builder.add_node("JobIntelligenceAgent", job_intelligence_agent_node)
-    builder.add_node("MatchingAgent", matching_agent_node)
-    builder.add_node("ResumeTailorAgent", resume_tailor_agent_node)
-    builder.add_node("ArchetypeDetector", archetype_detector_node)
-    builder.add_node("LegitimacyScorer", legitimacy_scorer_node)
-    builder.add_node("OfferEvaluator", offer_evaluator_node)
-    builder.add_node("QueryAgent", query_agent_node)
-    builder.add_node("InsightAgent", insight_agent_node)
-    builder.add_node("QualityGate", quality_gate_node)
-    builder.add_node("ReportAgent", report_agent_node)
-    builder.add_node("ReviewAgent", review_agent_node)
-
-    builder.set_entry_point("IntentRouterNode")
-    builder.add_edge("IntentRouterNode", "MemoryRetrievalNode")
-    builder.add_edge("MemoryRetrievalNode", "SearchAgent")
-    builder.add_edge("SearchAgent", "JobIntelligenceAgent")
-    builder.add_edge("JobIntelligenceAgent", "MatchingAgent")
-    builder.add_edge("MatchingAgent", "ResumeTailorAgent")
-    builder.add_edge("ResumeTailorAgent", "ArchetypeDetector")
-    builder.add_edge("ArchetypeDetector", "LegitimacyScorer")
-    builder.add_edge("LegitimacyScorer", "OfferEvaluator")
-    builder.add_edge("OfferEvaluator", "QueryAgent")
-    builder.add_edge("QueryAgent", "InsightAgent")
-    builder.add_edge("InsightAgent", "QualityGate")
-    builder.add_edge("QualityGate", "ReportAgent")
-    builder.add_edge("ReportAgent", "ReviewAgent")
-    builder.add_conditional_edges(
-        "ReviewAgent",
-        route_after_review,
-        {
-            "QueryAgent": "QueryAgent",
-            "InsightAgent": "InsightAgent",
-            "ReportAgent": "ReportAgent",
-            END: END,
-        },
-    )
-
-    return builder.compile()
 
 
 # ── Phase 2: Workflow-aware graph ──
@@ -492,14 +384,14 @@ def route_after_gate(state: AgentState) -> str:  # type: ignore[valid-type]
     return _gate_retry_target(state)
 
 
-def build_phase2_graph() -> Any:
-    """Build the Phase 2 workflow-based graph with Supervisor routing.
+def build_graph() -> Any:
+    """Build the workflow-based graph with Supervisor routing.
 
     Structure:
-      Supervisor → MemoryRetrievalNode → [first workflow node]
-      → ... → Gate → END
+      Supervisor -> MemoryRetrievalNode -> [first workflow node]
+      -> ... -> Gate -> END
 
-    Each workflow follows its own Tool→Agent→Gate sequence.
+    Each workflow follows its own Tool->Agent->Gate sequence.
     Conditional routing is only used at actual branch points.
     """
     builder: StateGraph = StateGraph(AgentState)  # type: ignore[assignment]
@@ -616,171 +508,6 @@ def build_agent_message_event(agent: str, state: AgentState) -> dict[str, Any] |
     insights = dict(state.get("insights") or {})
     now = datetime.now(timezone.utc).isoformat()
 
-    if agent == "IntentRouterNode":
-        return {
-            "type": "message",
-            "speaker": "IntentRouterNode",
-            "content": "IntentRouterNode 已完成意图识别与确定性分流。",
-            "metadata": {
-                "intent": state.get("intent"),
-                "intent_reason": insights.get("intent_reason"),
-                "company": state.get("query_profile", {}).get("company"),
-                "role": state.get("query_profile", {}).get("role"),
-                "team_hint": state.get("query_profile", {}).get("team_hint"),
-                "domain_hint": state.get("query_profile", {}).get("domain_hint"),
-            },
-            "timestamp": now,
-        }
-
-    if agent == "SearchAgent":
-        return {
-            "type": "message",
-            "speaker": "SearchAgent",
-            "content": "SearchAgent 已完成并发检索，context 已可供下游节点无损读取。",
-            "metadata": {
-                "intent": state.get("intent"),
-                "company": insights.get("company"),
-                "role": insights.get("role"),
-                "used_tools": insights.get("used_tools"),
-                "search_queries": insights.get("search_queries"),
-                "query_pack": state.get("query_pack"),
-                "source_urls": insights.get("source_urls"),
-                "evidence_count": insights.get("evidence_count"),
-                "company_specific_source_count": insights.get("company_specific_source_count"),
-                "generic_source_count": insights.get("generic_source_count"),
-                "context_quality_score": insights.get("context_quality_score"),
-                "retrieval_diagnostics": state.get("retrieval_diagnostics"),
-                "business_domain_hints": insights.get("business_domain_hints"),
-                "search_failures": insights.get("search_failures"),
-            },
-            "timestamp": now,
-        }
-
-    if agent == "JobIntelligenceAgent":
-        job_snapshot = dict(state.get("job_snapshot") or {})
-        external_evidence_pack = dict(state.get("external_evidence_pack") or {})
-        return {
-            "type": "message",
-            "speaker": "JobIntelligenceAgent",
-            "content": "JobIntelligenceAgent 已融合外部证据生成岗位快照与证据包。",
-            "metadata": {
-                "job_snapshot_id": job_snapshot.get("job_snapshot_id"),
-                "evidence_pack_id": external_evidence_pack.get("evidence_pack_id"),
-                "job_id": job_snapshot.get("job_id"),
-                "requirement_count": len(list(job_snapshot.get("job_requirements") or [])),
-                "evidence_source_count": len(list(external_evidence_pack.get("sources") or [])),
-                "freshness": (job_snapshot.get("evidence_quality") or {}).get("freshness"),
-                "coverage": (job_snapshot.get("evidence_quality") or {}).get("coverage"),
-            },
-            "timestamp": now,
-        }
-
-    if agent == "MatchingAgent":
-        match_assessment = dict(state.get("match_assessment") or {})
-        return {
-            "type": "message",
-            "speaker": "MatchingAgent",
-            "content": "MatchingAgent 已完成候选人-岗位匹配分析。",
-            "metadata": {
-                "assessment_id": match_assessment.get("assessment_id"),
-                "overall_score": match_assessment.get("overall_score"),
-                "recommendation": match_assessment.get("recommendation"),
-                "strength_count": len(list(match_assessment.get("strengths") or [])),
-                "gap_count": len(list(match_assessment.get("gaps") or [])),
-                "risk_count": len(list(match_assessment.get("risks") or [])),
-                "dimension_scores": match_assessment.get("dimension_scores"),
-            },
-            "timestamp": now,
-        }
-
-    if agent == "ResumeTailorAgent":
-        tailor_plan = dict(state.get("tailor_plan") or {})
-        resume_version = dict(state.get("resume_version") or {})
-        fact_check_report = dict(state.get("fact_check_report") or {})
-        return {
-            "type": "message",
-            "speaker": "ResumeTailorAgent",
-            "content": "ResumeTailorAgent 已生成简历定制计划、岗位版本和事实校验结果。",
-            "metadata": {
-                "tailor_plan_id": tailor_plan.get("tailor_plan_id"),
-                "resume_version_id": resume_version.get("resume_version_id"),
-                "target_role": tailor_plan.get("target_role"),
-                "fact_check_status": fact_check_report.get("status") or resume_version.get("fact_check_status"),
-                "keyword_covered": list((tailor_plan.get("keyword_coverage") or {}).get("covered") or [])[:4],
-                "keyword_missing": list((tailor_plan.get("keyword_coverage") or {}).get("missing") or [])[:4],
-                "section_action_count": len(list(tailor_plan.get("section_actions") or [])),
-            },
-            "timestamp": now,
-        }
-
-    if agent == "QueryAgent":
-        return {
-            "type": "message",
-            "speaker": "QueryAgent",
-            "content": "QueryAgent 已输出岗位要求、技术栈、薪资线索和面试官期待。",
-            "metadata": {
-                "intent": state.get("intent"),
-                "company": insights.get("company"),
-                "role": insights.get("role"),
-                "company_signals": insights.get("company_signals"),
-                "role_signals": insights.get("role_signals"),
-                "company_specific_requirements": insights.get("company_specific_requirements"),
-                "common_requirements": insights.get("common_requirements"),
-                "coverage_gaps": insights.get("coverage_gaps"),
-                "context_quality_score": insights.get("context_quality_score"),
-                "claims_count": len(insights.get("claims") or []),
-                "claim_evidence_coverage": (insights.get("quality_metrics") or {}).get("claim_evidence_coverage"),
-                "core_evaluation_points": insights.get("core_evaluation_points"),
-                "technical_stack_requirements": insights.get("technical_stack_requirements"),
-                "salary_signals": insights.get("salary_signals"),
-                "interview_expectations": insights.get("interview_expectations"),
-                "job_snapshot_id": (state.get("job_snapshot") or {}).get("job_snapshot_id"),
-                "external_evidence_pack_id": (state.get("external_evidence_pack") or {}).get("evidence_pack_id"),
-                "match_assessment_id": (state.get("match_assessment") or {}).get("assessment_id"),
-                "match_recommendation": (state.get("match_assessment") or {}).get("recommendation"),
-                "tailor_plan_id": (state.get("tailor_plan") or {}).get("tailor_plan_id"),
-                "resume_version_id": (state.get("resume_version") or {}).get("resume_version_id"),
-                "fact_check_status": (state.get("fact_check_report") or {}).get("status"),
-                "fallback_query": bool((insights.get("fallback_flags") or {}).get("query")),
-            },
-            "timestamp": now,
-        }
-
-    if agent == "InsightAgent":
-        return {
-            "type": "message",
-            "speaker": "InsightAgent",
-            "content": "InsightAgent 已输出风险点、面试官追问和准备策略。",
-            "metadata": {
-                "candidate_risks": insights.get("candidate_risks"),
-                "interviewer_questions": insights.get("interviewer_questions"),
-                "prep_strategy": insights.get("prep_strategy"),
-                "interview_angle": insights.get("interview_angle"),
-                "evidence_gap_summary": insights.get("evidence_gap_summary"),
-                "action_plan_source_coverage": insights.get("action_plan_source_coverage"),
-                "action_plan_items_count": len(insights.get("action_plan_items") or []),
-                "fallback_insight": bool((insights.get("fallback_flags") or {}).get("insight")),
-            },
-            "timestamp": now,
-        }
-
-    if agent == "QualityGate":
-        return {
-            "type": "message",
-            "speaker": "QualityGate",
-            "content": "QualityGate 已完成成稿前质量闸门判定。",
-            "metadata": {
-                "quality_mode": state.get("quality_mode"),
-                "warning_message": state.get("warning_message"),
-                "root_cause": state.get("root_cause"),
-                "evidence_count": insights.get("evidence_count"),
-                "company_specific_source_count": insights.get("company_specific_source_count"),
-                "claim_evidence_coverage": (insights.get("quality_metrics") or {}).get("claim_evidence_coverage"),
-                "action_plan_source_coverage": insights.get("action_plan_source_coverage"),
-            },
-            "timestamp": now,
-        }
-
     if agent == "ReportAgent":
         return {
             "type": "message",
@@ -797,16 +524,6 @@ def build_agent_message_event(agent: str, state: AgentState) -> dict[str, Any] |
             "timestamp": now,
         }
 
-    if agent == "ReviewAgent":
-        parsed = _parse_review_feedback(state)
-        return {
-            "type": "message",
-            "speaker": "ReviewAgent",
-            "content": "ReviewAgent 已完成本轮审查。",
-            "metadata": parsed.model_dump() if parsed is not None else {"raw": state.get("review_feedback")},
-            "timestamp": now,
-        }
-
     return None
 
 
@@ -817,16 +534,11 @@ def parse_review_feedback_json(state: AgentState) -> dict[str, Any] | None:
 
 __all__ = [
     "AgentState",
-    "GRAPH_NODE_ORDER",
     "PHASE2_NODE_ORDER",
     "PHASE2_WORKFLOWS",
-    "build_agent_message_event",
-    "build_career_research_graph",
-    "build_phase2_graph",
+    "build_graph",
     "build_initial_state",
     "merge_state_update",
-    "parse_review_feedback_json",
-    "route_after_review",
     "route_after_supervisor",
     "route_after_memory_retrieval",
     "route_after_matching_engine",
