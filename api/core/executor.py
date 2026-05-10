@@ -10,7 +10,6 @@ from api.core.conversation_memory import (
     save_memory_turn,
 )
 from api.core.graph import (
-    GRAPH_NODE_ORDER,
     PHASE2_NODE_ORDER,
     AgentState,
     build_agent_message_event,
@@ -34,7 +33,7 @@ from api.core.workflow_state import get_workflow_state_view
 def _resolve_graph_node_name(event: dict[str, Any]) -> str | None:
     metadata = event.get("metadata") or {}
     langgraph_node = metadata.get("langgraph_node")
-    all_nodes = GRAPH_NODE_ORDER + [n for n in PHASE2_NODE_ORDER if n not in GRAPH_NODE_ORDER]
+    all_nodes = PHASE2_NODE_ORDER
     if isinstance(langgraph_node, str) and langgraph_node in all_nodes:
         return langgraph_node
 
@@ -70,6 +69,9 @@ class ResearchExecutionSession:
         resume_evidence: list[dict[str, Any]] | None = None,
         job_posting: dict[str, Any] | None = None,
         match_assessment: dict[str, Any] | None = None,
+        raw_jd_text: str = "",
+        resume_file: dict[str, Any] | None = None,
+        offer_list: list[dict[str, Any]] | None = None,
         research_case: dict[str, Any] | None = None,
         user_id: str = "",
     ) -> None:
@@ -100,6 +102,9 @@ class ResearchExecutionSession:
             resume_evidence=resume_evidence,
             job_posting=job_posting,
             match_assessment=match_assessment,
+            raw_jd_text=raw_jd_text,
+            resume_file=resume_file,
+            offer_list=offer_list,
             policy=self.policy.as_serializable(),
             run_manifest=self.run_manifest.model_dump(mode="json"),
             research_case=research_case,
@@ -171,6 +176,9 @@ class ResearchExecutionSession:
                         resume_evidence=list(state.get("resume_evidence") or []),
                         job_posting=state.get("job_posting"),
                         match_assessment=state.get("match_assessment"),
+                        raw_jd_text=str(state.get("raw_jd_text") or ""),
+                        resume_file=dict(state.get("resume_file") or {}),
+                        offer_list=list(state.get("offer_list") or []),
                         policy=state.get("policy"),
                         run_manifest=state.get("run_manifest"),
                         research_case=state.get("research_case"),
