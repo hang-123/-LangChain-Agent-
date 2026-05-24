@@ -1,7 +1,7 @@
-# ReportAgent 规范（阶段二）
+# ReportAgent 规范
 
 ## 1. 目标
-ReportAgent 是系统的最终输出 Agent。合并了阶段一的 ReportAgent + ReviewAgent，内置生成 + 自审，避免整节点回退的延迟。
+ReportAgent 是系统的最终输出 Agent，内置生成与自审功能。
 
 ## 2. 职责
 - 消费所有前置产物（JobSnapshot, MatchAssessment, ResumeVersion, PrepPack, OfferComparison）
@@ -124,7 +124,7 @@ ReportAgent 是系统的最终输出 Agent。合并了阶段一的 ReportAgent +
 - 警告/降级模式必须在报告中显著位置说明
 - 流式输出支持 SSE chunk
 
-## 8. 自审规则（内置，替代 ReviewAgent）
+## 8. 自审规则（内置）
 
 | 检查项 | 阈值 | 动作 |
 |--------|------|------|
@@ -155,15 +155,7 @@ ReportAgent 是系统的最终输出 Agent。合并了阶段一的 ReportAgent +
 | `ENABLE_REPORT_SELF_REVIEW` | `1` | 是否启用内置自审 |
 
 ## 12. 实现文件
-- `api/agents/report_agent.py` — ReportAgent 主逻辑（合并 review_agent.py 的自审逻辑）
+- `api/agents/report_agent.py` — ReportAgent 主逻辑（包含自审逻辑）
 - `api/agents/review_agent.py` — 迁移/废弃（自审逻辑移入 report_agent.py）
 - `api/core/prompts.py` — ReportAgent 的 prompt 模板
 
-## 13. 与阶段一的差异
-| 维度 | 阶段一 | 阶段二 |
-|------|--------|--------|
-| 组件 | ReportAgent + ReviewAgent (2个Agent) | ReportAgent (1个Agent) |
-| 审查 | ReviewAgent 独立审查 → 可能整节点回退 | 内置自审 + 内部修复 |
-| 回退 | retry_target 可能触发 QueryAgent/InsightAgent/ReportAgent 重跑 | 内部修复（最多1次），严重问题 defer 到 Gate |
-| 模板 | 1个固定模板 | 按工作流选择 4 个模板 |
-| 流式输出 | 支持 | 支持 |

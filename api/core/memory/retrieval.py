@@ -208,12 +208,18 @@ async def retrieve_memories(
 
     elapsed_ms = (time.perf_counter() - t0) * 1000
     formatted = _format_memory_context(final_hits)
+    typed = _group_by_type(final_hits)
 
     return MemoryContext(
         hits=final_hits,
         formatted_text=formatted,
         hit_count=len(final_hits),
         retrieval_time_ms=round(elapsed_ms, 2),
+        entity_hits=typed.get(MemoryType.ENTITY_KNOWLEDGE, []),
+        pattern_hits=typed.get(MemoryType.PATTERN, []),
+        preference_hits=typed.get(MemoryType.PREFERENCE, []),
+        semantic_hits=typed.get(MemoryType.SEMANTIC, []),
+        episodic_hits=typed.get(MemoryType.EPISODIC, []),
     )
 
 
@@ -321,3 +327,11 @@ def _age_hint(created_at: str) -> str:
         return f"{days // 365}y ago"
     except (ValueError, IndexError):
         return ""
+
+
+def _group_by_type(hits: list[MemoryHit]) -> dict[MemoryType, list[MemoryHit]]:
+    """Group hits by memory type for distributed injection."""
+    groups: dict[MemoryType, list[MemoryHit]] = {}
+    for hit in hits:
+        groups.setdefault(hit.memory.memory_type, []).append(hit)
+    return groups

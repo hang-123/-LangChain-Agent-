@@ -44,17 +44,35 @@ def get_embedding_model() -> Any:
     if OpenAIEmbeddings is None:
         raise RuntimeError("langchain-openai is not installed.")
     return OpenAIEmbeddings(
-        model=settings.openai_embedding_model,
+        model=settings.embedding_model,
         api_key=api_key,
         base_url=settings.openai_base_url,
     )
 
 
+_embedding_backend: Any = None
+
+
+def _get_embedding_backend() -> Any:
+    """Lazy-init the embedding backend."""
+    global _embedding_backend
+    if _embedding_backend is None:
+        from api.core.embedding import build_embedding_backend as _build
+        _embedding_backend = _build()
+    return _embedding_backend
+
+
 async def embed_query(text: str) -> list[float]:
-    model = get_embedding_model()
-    if hasattr(model, "aembed_query"):
-        return list(await model.aembed_query(text))
-    return list(model.embed_query(text))
+    """Embed a query using the configured embedder backend."""
+    try:
+        backend = _get_embedding_backend()
+        return await backend.embed_query(text)
+    except Exception:
+        # Fallback to OpenAI-compatible path
+        model = get_embedding_model()
+        if hasattr(model, "aembed_query"):
+            return list(await model.aembed_query(text))
+        return list(model.embed_query(text))
 
 
 def coerce_message_text(payload: Any) -> str:

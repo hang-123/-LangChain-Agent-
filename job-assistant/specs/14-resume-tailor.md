@@ -1,9 +1,7 @@
-# ResumeTailor Tool 规范（阶段二）
+# ResumeTailor Tool 规范
 
 ## 1. 目标
 在不虚构事实的前提下，把候选人已有经历重新组织为更贴合目标岗位的简历版本。0 LLM 调用，纯确定性逻辑。
-
-将阶段一的 ResumeTailorAgent 降级为 Tool，保留内置 fact check。
 
 ## 2. 职责
 - 基于匹配结果制定改写计划
@@ -85,13 +83,4 @@
 - 不得承诺"这样改一定过筛"
 
 ## 9. 实现文件
-- `api/tools/resume_tailor.py` — ResumeTailor 主逻辑（从 resume_tailor_agent.py 迁移）
-- `api/agents/resume_tailor_agent.py` — 废弃/删除
-
-## 10. 与阶段一的差异
-| 维度 | 阶段一 ResumeTailorAgent | 阶段二 ResumeTailor |
-|------|-------------------------|---------------------|
-| 类型 | Agent（名不副实） | Tool |
-| LLM | 0次 | 0次 |
-| fact_check | 内嵌 FactCheckReport | 保留, 但最终校验在 Gate |
-| 位置 | 固定图节点 | 仅 wf_resume_tailor_v2 中调用 |
+- `api/tools/resume_tailor.py` — ResumeTailor 主逻辑

@@ -7,46 +7,82 @@ from api.core.graph import build_initial_state
 
 
 class TestDeterministicRouting:
-    def test_route_match(self):
+    @pytest.mark.asyncio
+    async def test_route_match(self):
         state = build_initial_state("分析匹配度")
-        result = _deterministic_route("分析匹配度", state)
+        result = await _deterministic_route("分析匹配度", state)
         assert result is not None
         assert result.intent == "match"
         assert result.workflow_id == "wf_match_v2"
 
-    def test_route_resume_tailor(self):
+    @pytest.mark.asyncio
+    async def test_route_resume_tailor(self):
         state = build_initial_state("帮我改简历")
-        result = _deterministic_route("帮我改简历", state)
+        result = await _deterministic_route("帮我改简历", state)
         assert result is not None
         assert result.intent == "resume_tailor"
         assert result.workflow_id == "wf_resume_tailor_v2"
 
-    def test_route_interview_prep(self):
+    @pytest.mark.asyncio
+    async def test_route_interview_prep(self):
         state = build_initial_state("准备面试")
-        result = _deterministic_route("准备面试", state)
+        result = await _deterministic_route("准备面试", state)
         assert result is not None
         assert result.intent == "interview_prep"
         assert result.workflow_id == "wf_interview_prep_v2"
 
-    def test_route_offer_compare(self):
+    @pytest.mark.asyncio
+    async def test_route_offer_compare(self):
         state = build_initial_state("对比这两个offer")
-        result = _deterministic_route("对比这两个offer", state)
+        result = await _deterministic_route("对比这两个offer", state)
         assert result is not None
         assert result.intent == "offer_compare"
         assert result.workflow_id == "wf_offer_compare"
 
-    def test_route_profile_bootstrap(self):
+    @pytest.mark.asyncio
+    async def test_route_profile_bootstrap(self):
         state = build_initial_state("上传简历")
-        result = _deterministic_route("上传简历", state)
+        result = await _deterministic_route("上传简历", state)
         assert result is not None
         assert result.intent == "profile_bootstrap"
         assert result.workflow_id == "wf_profile_bootstrap"
 
-    def test_no_keywords_returns_none(self):
+    @pytest.mark.asyncio
+    async def test_route_application_followup_create(self):
+        """Route '记录投递' to wf_application_followup_v1."""
+        state = build_initial_state("记录一下我投递了字节跳动后端实习")
+        state["candidate_profile"] = {"candidate_id": "cand_001"}
+        result = await _deterministic_route("记录一下我投递了字节跳动后端实习", state)
+        assert result is not None
+        assert result.intent == "application_followup"
+        assert result.workflow_id == "wf_application_followup_v1"
+        assert result.application_store_request is not None
+
+    @pytest.mark.asyncio
+    async def test_route_application_followup_list(self):
+        """Route '我的申请' to wf_application_followup_v1."""
+        state = build_initial_state("查看我的投递记录")
+        result = await _deterministic_route("查看我的投递记录", state)
+        assert result is not None
+        assert result.intent == "application_followup"
+        assert result.workflow_id == "wf_application_followup_v1"
+        assert result.application_store_request is not None
+
+    @pytest.mark.asyncio
+    async def test_route_application_followup_update(self):
+        """Route '更新状态' to wf_application_followup_v1."""
+        state = build_initial_state("把字节后端的投递状态更新为面试中")
+        state["candidate_profile"] = {"candidate_id": "cand_001"}
+        result = await _deterministic_route("把字节后端的投递状态更新为面试中", state)
+        assert result is not None
+        assert result.intent == "application_followup"
+        assert result.workflow_id == "wf_application_followup_v1"
+
+    @pytest.mark.asyncio
+    async def test_no_keywords_returns_none(self):
         """When no keywords match specific intents, returns None for LLM fallback."""
         state = build_initial_state("你好，今天天气怎么样")
-        result = _deterministic_route("你好，今天天气怎么样", state)
-        # May match "分析" etc. or return None
+        result = await _deterministic_route("你好，今天天气怎么样", state)
         if result is not None:
             assert result.intent in ("match", "general")
 

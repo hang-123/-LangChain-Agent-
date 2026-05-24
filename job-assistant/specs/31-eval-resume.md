@@ -39,6 +39,6 @@
 - `tests/test_resume_scorer.py` — 7 个单元测试（pass, fabrication-zero, rejected-zero, missing-keywords, no-ground-truth, downgraded-partial, full-integration）
 - `api/main.py` — `run_research_case` 端点传递 `candidate_profile` 和 `resume_evidence` 给 session
 
-**待实现（Phase 2/后续）**:
+**待实现**:
 - 大规模人工标注样本
 - `readability` 维度目前通过 structure 指标间接评估，未引入 NLP 文本可读性指标

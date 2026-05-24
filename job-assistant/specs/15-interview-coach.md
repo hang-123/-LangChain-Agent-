@@ -1,7 +1,7 @@
-# InterviewCoach Tool 规范（阶段二）
+# InterviewCoach Tool 规范
 
 ## 1. 目标
-基于候选人的真实经历和目标岗位要求，生成个性化面试准备材料。阶段二将 InterviewCoachAgent 降级为 Tool：单次 LLM 生成，不做自主决策。
+基于候选人的真实经历和目标岗位要求，生成个性化面试准备材料。单次 LLM 生成，不做自主决策。
 
 ## 2. 职责
 - 生成面试问题清单（行为题 + 技术题 + 项目深挖题）
@@ -72,11 +72,3 @@
 
 ## 10. 实现文件
 - `api/tools/interview_coach.py` — InterviewCoach 主逻辑
-- `api/agents/interview_coach_agent.py` — 迁移/废弃
-
-## 11. 与阶段一的差异
-| 维度 | 阶段一 | 阶段二 |
-|------|--------|--------|
-| 类型 | Agent（阶段二规划） | Tool（单次 LLM） |
-| 状态 | 未实现 | 阶段二实现 |
-| 调用方式 | 独立图节点 | 仅 wf_interview_prep_v2 中调用 |

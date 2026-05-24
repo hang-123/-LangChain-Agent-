@@ -12,7 +12,7 @@ from api.agents.supervisor import supervisor_node, _deterministic_route
 
 def test_deterministic_match():
     state = {"query": "帮我分析字节后端实习是否匹配", "candidate_profile": {}, "resume_evidence": []}
-    result = _deterministic_route(state["query"], state)
+    result = asyncio.run(_deterministic_route(state["query"], state))
     assert result is not None
     assert result.intent == "match"
     assert result.workflow_id == "wf_match_v2"
@@ -21,7 +21,7 @@ def test_deterministic_match():
 
 def test_deterministic_tailor():
     state = {"query": "帮我改简历", "candidate_profile": {}, "resume_evidence": []}
-    result = _deterministic_route(state["query"], state)
+    result = asyncio.run(_deterministic_route(state["query"], state))
     assert result is not None
     assert result.intent == "resume_tailor"
     assert result.workflow_id == "wf_resume_tailor_v2"
@@ -30,7 +30,7 @@ def test_deterministic_tailor():
 
 def test_deterministic_interview():
     state = {"query": "准备面试", "candidate_profile": {}, "resume_evidence": []}
-    result = _deterministic_route(state["query"], state)
+    result = asyncio.run(_deterministic_route(state["query"], state))
     assert result is not None
     assert result.intent == "interview_prep"
     assert result.workflow_id == "wf_interview_prep_v2"
@@ -39,7 +39,7 @@ def test_deterministic_interview():
 
 def test_deterministic_offer():
     state = {"query": "对比这两个offer", "candidate_profile": {}, "resume_evidence": []}
-    result = _deterministic_route(state["query"], state)
+    result = asyncio.run(_deterministic_route(state["query"], state))
     assert result is not None
     assert result.intent == "offer_compare"
     assert result.workflow_id == "wf_offer_compare"
@@ -48,7 +48,7 @@ def test_deterministic_offer():
 
 def test_deterministic_profile():
     state = {"query": "上传简历", "resume_file": "resume.pdf", "candidate_profile": {}}
-    result = _deterministic_route(state["query"], state)
+    result = asyncio.run(_deterministic_route(state["query"], state))
     assert result is not None
     assert result.intent == "profile_bootstrap"
     assert result.workflow_id == "wf_profile_bootstrap"
@@ -57,7 +57,7 @@ def test_deterministic_profile():
 
 def test_missing_params():
     state = {"query": "改简历", "candidate_profile": {}, "resume_evidence": []}
-    result = _deterministic_route(state["query"], state)
+    result = asyncio.run(_deterministic_route(state["query"], state))
     assert result is not None
     assert "candidate_profile" in result.missing_artifacts
     print("✓ Missing params OK")

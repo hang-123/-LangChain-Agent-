@@ -1,9 +1,9 @@
-# ResumeParser Tool 规范（阶段二）
+# ResumeParser Tool 规范
 
 ## 1. 目标
 把原始简历文件（PDF/DOCX/TXT/Markdown）或文本解析为 `CandidateProfile` 基础字段和 `ResumeEvidence`。
 
-阶段二将 ProfilePipeline（11-profile-agent.md）的三个子模块——ResumeParser、ProfileNormalizer、ProfileValidator——合并为一个统一的 ResumeParser Tool。单次 LLM 调用完成文本抽取 + 标准化 + 验证。
+ResumeParser 将 ProfilePipeline（11-profile-agent.md）的三个子模块——ResumeParser、ProfileNormalizer、ProfileValidator——合并为一个统一的 Tool。单次 LLM 调用完成文本抽取 + 标准化 + 验证。
 
 ## 2. 职责
 - 解析简历文件 → 提取原始文本
@@ -88,12 +88,4 @@
 
 ## 10. 实现文件
 - `api/tools/resume_parser.py` — ResumeParser 主逻辑（LLM抽取+标准化+验证）
-- （原 ProfilePipeline 的 ProfileNormalizer / ProfileValidator 逻辑吸收进此文件）
 
-## 11. 与阶段一的差异
-| 维度 | 阶段一 | 阶段二 |
-|------|--------|--------|
-| 组件 | ProfilePipeline(ResumeParser+Normalizer+Validator, 3个子模块) | ResumeParser(统一Tool) |
-| 状态 | 阶段二规划 | 阶段二实现 |
-| LLM | 未定义 | 1次（文本抽取） |
-| 调用方式 | 独立工作流入口 | wf_profile_bootstrap 的唯一 Tool |

@@ -44,6 +44,6 @@
 - `tests/test_matching_scorer.py` — 6 个单元测试（pass, penalty, missing, no-ground-truth, partial, full-integration）
 - `api/main.py` — `run_research_case` 端点传递 `candidate_profile` 和 `resume_evidence` 给 session
 
-**待实现（Phase 2/后续）**:
+**待实现**:
 - 大规模人工标注样本（当前为小型构造样本）
 - 与 CI/CD pipeline 集成自动运行

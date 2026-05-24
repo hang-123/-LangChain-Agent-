@@ -268,6 +268,14 @@ async def _gate_node(state: AgentState) -> dict[str, Any]:  # type: ignore[valid
         "matching": {"match_assessment": dict(state.get("match_assessment") or {})},
         "resume": {"resume_version": dict(state.get("resume_version") or {})},
         "report": {"report_content": str(state.get("report_content") or "")},
+        "prep_pack": dict(state.get("prep_pack") or state.get("interview_prep_pack") or {}),
+        "offer_comparison": dict(state.get("offer_comparison") or {}),
+        "application_record": dict(
+            (state.get("application_store_response") or {}).get("application_record") or {}
+        ),
+        "previous_status": str(
+            (state.get("application_store_response") or {}).get("previous_status") or ""
+        ),
     }
 
     result = run_gate(
@@ -275,6 +283,7 @@ async def _gate_node(state: AgentState) -> dict[str, Any]:  # type: ignore[valid
         working_set=working_set,
         background=background,
         report_content=str(state.get("report_content") or ""),
+        workflow_id=str(state.get("workflow_id") or ""),
     )
 
     verification_report = result.model_dump(mode="json")
@@ -301,6 +310,8 @@ async def _gate_node(state: AgentState) -> dict[str, Any]:  # type: ignore[valid
             gate_root_cause = "attribution"
         elif any(rule == "action_plan_source_coverage" for rule in issue_rules):
             gate_root_cause = "synthesis"
+        elif any(rule in {"application_status_valid", "application_required_fields", "application_transition"} for rule in issue_rules):
+            gate_root_cause = "attribution"
 
     if verification_report.get("status") == "rejected":
         retry_count += 1
@@ -346,6 +357,10 @@ def _gate_retry_target(state: AgentState) -> str:
     workflow_id = str(state.get("workflow_id") or "")
     workflow_nodes = PHASE2_WORKFLOWS.get(workflow_id, PHASE2_WORKFLOWS["wf_match_v2"])
     root_cause = str(state.get("root_cause") or "")
+
+    # Application workflow: always retry ApplicationStore
+    if workflow_id == "wf_application_followup_v1":
+        return "ApplicationStore"
 
     if root_cause == "retrieval":
         if "SearchOrchestrator" in workflow_nodes:
@@ -472,6 +487,7 @@ def build_graph() -> Any:
             "ReportAgent": "ReportAgent",
             "ResumeParser": "ResumeParser",
             "OfferEvaluator": "OfferEvaluator",
+            "ApplicationStore": "ApplicationStore",
             END: END,
         },
     )

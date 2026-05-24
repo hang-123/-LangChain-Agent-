@@ -4,13 +4,12 @@
 - 为所有 Agent、Tool、Eval 提供统一数据语言。
 - 保证系统始终区分事实、推断、建议。
 - 让任何结论都能追溯到简历、JD 或用户显式输入。
-- 阶段二新增 career-ops 集成实体和记忆系统实体。
+- 涵盖 career-ops 集成实体和记忆系统实体。
 
-## 2. 阶段一已有实体（保持兼容）
+## 2. 实体定义
 
 ### 2.1 CandidateProfile
 候选人的长期稳定画像，由简历解析结果和用户补充信息组成。
-（字段定义不变，参见阶段一 spec）
 
 ### 2.2 ResumeAsset
 候选人上传或维护的一份原始简历资产。
@@ -60,11 +59,7 @@
 ### 2.17 ConversationMemory
 按用户隔离的对话保留对象。
 
----
-
-## 3. 阶段二新增实体
-
-### 3.1 ArchetypeDetection
+### 2.18 ArchetypeDetection
 岗位原型检测结果，由 JobAnalyzer 在岗位分析时生成。
 
 ```json
@@ -77,7 +72,7 @@
 }
 ```
 
-### 3.2 LegitimacyAssessment
+### 2.19 LegitimacyAssessment
 岗位合法性评估结果，由 JobAnalyzer 内置的 LegitimacyScorer 生成。独立于匹配评分。
 
 ```json
@@ -102,7 +97,7 @@
 }
 ```
 
-### 3.3 MatchGap
+### 2.20 MatchGap
 匹配分析中的单条差距项，按四级严重度分类。
 
 ```json
@@ -115,7 +110,7 @@
 }
 ```
 
-### 3.4 OfferComparison
+### 2.21 OfferComparison
 多 offer 对比结果，10维加权矩阵。
 
 ```json
@@ -142,7 +137,7 @@
 }
 ```
 
-### 3.5 STARStory
+### 2.22 STARStory
 STAR+R 面试故事，Reflection 字段区分资深与初级候选人。
 
 ```json
@@ -159,7 +154,7 @@ STAR+R 面试故事，Reflection 字段区分资深与初级候选人。
 }
 ```
 
-### 3.6 AdaptiveFraming
+### 2.23 AdaptiveFraming
 基于 Archetype 的自适应叙事角度。同一段经历根据目标岗位原型展示不同侧重点。
 
 ```json
@@ -172,7 +167,7 @@ STAR+R 面试故事，Reflection 字段区分资深与初级候选人。
 }
 ```
 
-### 3.7 TurnSummary
+### 2.24 TurnSummary
 单轮对话摘要，用于 STM 存储和记忆续接。
 
 ```json
@@ -186,7 +181,7 @@ STAR+R 面试故事，Reflection 字段区分资深与初级候选人。
 }
 ```
 
-### 3.8 ConversationSession
+### 2.25 ConversationSession
 单次会话记录，STM 的存储单元。
 
 ```json
@@ -200,37 +195,42 @@ STAR+R 面试故事，Reflection 字段区分资深与初级候选人。
 }
 ```
 
-### 3.9 LongTermMemory
-跨 session 的长期记忆条目，存储于 pgvector。
+### 2.26 LongTermMemory
+跨 session 的长期记忆条目，存储于 PostgreSQL + pgvector（v2.0）。
 
 ```json
 {
   "memory_id": "ltm_001",
   "user_id": "user_001",
-  "memory_type": "match_pattern",
-  "content": "用户对后端实习岗位的匹配度通常在 70-80 区间，主要差距在分布式系统经验",
+  "memory_type": "entity_knowledge",
+  "content": "字节跳动 后端实习 技术栈: Go/Python, 面试侧重系统设计",
   "embedding": [],
-  "source_turns": ["run_001", "run_003"],
-  "importance": 0.75,
-  "decay_factor": 0.98,
+  "structured_data": {"company": "字节跳动", "role": "后端开发实习", "source_type": "rag_writeback"},
+  "initial_importance": 0.70,
+  "importance": 0.65,
+  "lifetime_days": 180,
+  "access_count": 3,
+  "status": "active",
+  "content_hash": "a1b2c3d4e5f6",
+  "refresh_attempts": 0,
   "created_at": "2026-05-08T10:00:00Z",
-  "last_accessed_at": "2026-05-08T12:00:00Z"
+  "last_accessed_at": "2026-05-18T12:00:00Z",
+  "last_refreshed_at": null,
+  "expires_at": "2026-11-04T10:00:00Z"
 }
 ```
 
 ---
 
-## 4. 枚举定义
+## 3. 枚举定义
 
-### 4.1 阶段一已有枚举
+### 3.1 基础枚举
 - `requirement_level`: `must_have`, `nice_to_have`, `bonus`
 - `evidence_type`: `education`, `work_experience`, `project`, `skill`, `certificate`, `user_input`
 - `recommendation`: `strong_recommend`, `recommended_with_risks`, `neutral`, `not_recommended`
 - `application_status`: `draft`, `planned`, `applied`, `screening`, `written_test`, `interviewing`, `offer`, `rejected`, `withdrawn`
 
-### 4.2 阶段二新增枚举
-
-#### Archetype（岗位原型）
+### 3.2 Archetype（岗位原型）
 - `AI Platform / LLMOps`
 - `Agentic / Automation`
 - `Technical AI PM`
@@ -238,44 +238,53 @@ STAR+R 面试故事，Reflection 字段区分资深与初级候选人。
 - `AI Forward Deployed`
 - `AI Transformation`
 
-#### LegitimacyTier（合法性分级）
+### 3.3 LegitimacyTier（合法性分级）
 - `High Confidence`
 - `Proceed with Caution`
 - `Suspicious`
 
-#### GapSeverity（差距严重度）
+### 3.4 GapSeverity（差距严重度）
 - `hard_blocker`: 硬性门槛，缺失则强烈不推荐
 - `significant`: 重要差距，可能影响面试表现
 - `nice_to_have`: 加分项缺失
 - `soft`: 轻微差异，不影响投递建议
 
-#### OfferDimension（offer 对比维度）
+### 3.5 OfferDimension（offer 对比维度）
 - `north_star_alignment`, `cv_match`, `seniority_level`, `compensation`, `growth_trajectory`, `remote_quality`, `company_reputation`, `tech_stack_modernity`, `speed_to_offer`, `cultural_signals`
 
-#### MemoryType（记忆类型）
-- `match_pattern`: 匹配模式
-- `skill_gap`: 技能差距记录
-- `preference`: 用户偏好
-- `feedback`: 用户反馈
+### 3.6 MemoryType（记忆类型 — v2.0 5 分类）
+- `entity_knowledge`: 特定公司/岗位的可验证事实（技术栈、面试风格），180 天衰减
+- `pattern`: 从多次行为中提取的用户特征（后端方向、Java 栈），180 天衰减
+- `preference`: 用户显式或隐式表达的偏好（只看北上广深），永不过期
+- `semantic`: 行业通用知识、面试方法论，120 天衰减
+- `episodic`: 单次研究的记录和结论，60 天衰减
 
-#### FollowupUrgency（跟进紧急度）
+### 3.7 MemoryStatus（记忆状态 — v2.0 状态机）
+- `active`: 正常检索，全权重
+- `expired_pending_refresh`: importance ≤ 0.2，触发异步刷新（entity_knowledge / semantic）
+- `refresh_failed`: 刷新失败但未达重试上限
+- `soft_deleted`: importance ≤ 0.1，不可检索，30 天后物理删除
+
+### 3.7 FollowupUrgency（跟进紧急度）
 - `urgent`, `overdue`, `waiting`, `cold`
 
 ---
 
-## 5. 实体关系
-- 原有关系保持不变
-- 新增：一个 `JobSnapshot` 可关联一个 `ArchetypeDetection`
-- 新增：一个 `JobSnapshot` 可关联一个 `LegitimacyAssessment`
-- 新增：一个 `CandidateProfile` 可关联多条 `LongTermMemory`
-- 新增：一个 `user_id` 可关联多个 `ConversationSession`，每个 session 包含多个 `TurnSummary`
-- 新增：一个 `JobRequirement` 可在 `MatchGap` 中被标注为差距
+## 4. 实体关系
+- 一个 `JobSnapshot` 可关联一个 `ArchetypeDetection`
+- 一个 `JobSnapshot` 可关联一个 `LegitimacyAssessment`
+- 一个 `CandidateProfile` 可关联多条 `LongTermMemory`
+- 一个 `user_id` 可关联多个 `ConversationSession`，每个 session 包含多个 `TurnSummary`
+- 一个 `JobRequirement` 可在 `MatchGap` 中被标注为差距
 
-## 6. 领域不变量（阶段二新增）
+## 5. 领域不变量
 - `ArchetypeDetection.confidence` < 0.5 时，结果应标注为"不确定"
 - `LegitimacyAssessment.tier = Suspicious` 时，匹配分析必须附带醒目的风险警告
 - `LegitimacyAssessment.batch_mode = true` 时，freshness 相关信号标记为"未验证"
 - `OfferComparison` 的加权总分必须基于所有维度计算，不得有维度漏计
 - `STARStory.reflection` 为空的候选人被视为"初级叙事水平"
-- `LongTermMemory.decay_factor` 随时间按指数衰减，低于阈值时标记为"冷记忆"
+- `LongTermMemory.importance` 按时间驱动线性衰减：`initial_importance × max(0, 1 - days_elapsed / lifetime_days)`（v2.0）
+- `importance ≤ 0.2` 标记为 `expired_pending_refresh`，触发 stale-while-revalidate 刷新
+- `importance ≤ 0.1` 标记为 `soft_deleted`，30 天后物理删除
+- `preference` 类型永不过期
 - Gate 拒绝（rejected）的 artifact 不得出现在任何用户可见输出中

@@ -135,11 +135,12 @@ class ApplicationStore:
         if not current:
             return {"ok": False, "error_code": "not_found", "message": f"Application {application_id} not found"}
 
-        if not _validate_transition(current["status"], new_status):
+        previous_status = str(current.get("status") or "")
+        if not _validate_transition(previous_status, new_status):
             return {
                 "ok": False,
                 "error_code": "illegal_transition",
-                "message": f"Cannot transition from {current['status']} to {new_status}",
+                "message": f"Cannot transition from {previous_status} to {new_status}",
             }
 
         now = _now_iso()
@@ -150,6 +151,7 @@ class ApplicationStore:
         await self.conn.commit()
 
         result = await self.get_application(application_id)
+        result["previous_status"] = previous_status
         return result
 
     async def append_note(self, application_id: str, content: str) -> dict[str, Any]:
@@ -218,6 +220,41 @@ class ApplicationStore:
         rows = await cursor.fetchall()
         return [self._row_to_dict(r) for r in rows]
 
+    async def find_applications(
+        self,
+        candidate_id: str = "",
+        company: str = "",
+        role: str = "",
+        limit: int = 10,
+    ) -> list[dict[str, Any]]:
+        """Find applications by candidate_id + fuzzy company/role match.
+
+        Used by Supervisor to auto-fill application_id when user refers to
+        "字节后端" without knowing the internal application_id.
+        """
+        if not self.conn:
+            await self.initialize()
+
+        query = "SELECT * FROM applications WHERE 1=1"
+        params: list[Any] = []
+
+        if candidate_id:
+            query += " AND candidate_id = ?"
+            params.append(candidate_id)
+        if company:
+            query += " AND company LIKE ?"
+            params.append(f"%{company}%")
+        if role:
+            query += " AND role LIKE ?"
+            params.append(f"%{role}%")
+
+        query += " ORDER BY last_updated_at DESC LIMIT ?"
+        params.append(limit)
+
+        cursor = await self.conn.execute(query, tuple(params))
+        rows = await cursor.fetchall()
+        return [self._row_to_dict(r) for r in rows]
+
     @staticmethod
     def _row_to_dict(row: aiosqlite.Row) -> dict[str, Any]:
         d = dict(row)
@@ -227,6 +264,25 @@ class ApplicationStore:
             d["notes"] = []
         d.pop("notes_json", None)
         return d
+
+
+async def lookup_applications(
+    candidate_id: str = "",
+    company: str = "",
+    role: str = "",
+    db_path: str = "",
+) -> list[dict[str, Any]]:
+    """Lightweight lookup for Supervisor auto-fill — one-shot connection."""
+    store = ApplicationStore(db_path=db_path) if db_path else ApplicationStore()
+    await store.initialize()
+    try:
+        return await store.find_applications(
+            candidate_id=candidate_id,
+            company=company,
+            role=role,
+        )
+    finally:
+        await store.close()
 
 
 async def run_application_store(state: dict[str, Any]) -> dict[str, Any]:
@@ -324,10 +380,13 @@ async def run_application_store(state: dict[str, Any]) -> dict[str, Any]:
                 },
             }
 
+        app_record = dict(result)
+        previous_status = str(app_record.pop("previous_status", ""))
         return {
             "application_store_response": {
                 "ok": True,
-                "application_record": result,
+                "application_record": app_record,
+                "previous_status": previous_status,
             },
         }
     finally:

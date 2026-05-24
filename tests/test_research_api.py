@@ -245,6 +245,8 @@ def test_stream_research_accepts_structured_resume_tailor_payload(monkeypatch, t
 
 
 def test_run_research_accepts_user_id_and_returns_memory_fields(monkeypatch, tmp_path):
+    monkeypatch.setenv("ENABLE_CONVERSATION_MEMORY", "0")
+    monkeypatch.setenv("ENABLE_LTM", "0")
     monkeypatch.setattr("api.main._graph", FakeRunGraph())
     monkeypatch.setattr("api.core.executor.build_repository", lambda policy: FileHarnessRepository(tmp_path / "harness"))
     get_settings.cache_clear()

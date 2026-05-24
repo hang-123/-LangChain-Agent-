@@ -17,8 +17,8 @@ from api.core.memory.models import (
     build_memory_tags,
     extract_keywords,
 )
-from api.core.memory.stm_store import SqliteConversationMemoryStore
-from api.core.memory.ltm_store import SqliteLongTermMemoryStore
+from api.core.memory.stm_store import PostgresConversationMemoryStore
+from api.core.memory.ltm_store import PostgresLongTermMemoryStore
 from api.core.memory.retrieval import (
     MemoryContext,
     reciprocal_rank_fusion,
@@ -107,7 +107,7 @@ class TestSTMStore:
     def store(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = Path(tmpdir) / "test_stm.sqlite"
-            store = SqliteConversationMemoryStore(str(db_path))
+            store = PostgresConversationMemoryStore(str(db_path))  # requires PG
             yield store
 
     @pytest.mark.asyncio
@@ -190,7 +190,7 @@ class TestLTMStore:
     def ltm(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = Path(tmpdir) / "test_ltm.sqlite"
-            store = SqliteLongTermMemoryStore(str(db_path))
+            store = PostgresLongTermMemoryStore(str(db_path))  # requires PG
             yield store
 
     @pytest.mark.asyncio
@@ -396,7 +396,7 @@ class TestRetrieval:
     @pytest.mark.asyncio
     async def test_retrieve_memories_with_data(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            ltm = SqliteLongTermMemoryStore(str(Path(tmpdir) / "ltm.sqlite"))
+            ltm = PostgresLongTermMemoryStore(str(Path(tmpdir) / "ltm.sqlite"))  # requires PG
             await ltm.save(LongTermMemory(
                 memory_id="mem-001", user_id="user_001",
                 memory_type=MemoryType.EPISODIC,
@@ -439,8 +439,8 @@ class TestConsolidation:
     @pytest.mark.asyncio
     async def test_consolidate_session(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            stm = SqliteConversationMemoryStore(str(Path(tmpdir) / "stm.sqlite"))
-            ltm = SqliteLongTermMemoryStore(str(Path(tmpdir) / "ltm.sqlite"))
+            stm = PostgresConversationMemoryStore(str(Path(tmpdir) / "stm.sqlite"))  # requires PG
+            ltm = PostgresLongTermMemoryStore(str(Path(tmpdir) / "ltm.sqlite"))  # requires PG
 
             sid = await stm.ensure_session("user_001")
             ts = TurnSummary(
@@ -477,7 +477,7 @@ class TestConsolidation:
     @pytest.mark.asyncio
     async def test_periodic_maintenance(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            ltm = SqliteLongTermMemoryStore(str(Path(tmpdir) / "ltm.sqlite"))
+            ltm = PostgresLongTermMemoryStore(str(Path(tmpdir) / "ltm.sqlite"))  # requires PG
             await ltm.save(LongTermMemory(
                 memory_id="mem-001", user_id="user_001",
                 memory_type=MemoryType.EPISODIC,

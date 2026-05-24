@@ -358,12 +358,17 @@ def _select_sources(
     for result in results:
         search_queries.extend(result.search_queries)
         search_failures.extend(result.failures)
+        is_rag = result.tool_name == "rag_vector_search"
         for source in result.sources:
             if not source.url or source.url in seen_urls:
                 continue
             seen_urls.add(source.url)
             source_urls.append(source.url)
             score, company_specific, source_class, relevance_hint = _classify_and_score_source(source, profile)
+            # RAG trust bonus: cached verified content is more trustworthy than first-time web scrapes
+            if is_rag:
+                rag_trust_bonus = float(get_settings().rag_trust_bonus or 0.5)
+                score += rag_trust_bonus
             ranked.append((score, len(ranked), source, source_class, relevance_hint, company_specific))
 
     ranked.sort(key=lambda item: (item[0], item[2].published), reverse=True)

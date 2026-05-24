@@ -165,4 +165,75 @@ async def test_run_application_store_unknown_operation():
     result = await run_application_store(state)
     resp = result["application_store_response"]
     assert resp["ok"] is False
-    assert resp["error_code"] == "unknown_operation"
+    assert resp["error_code"] in ("unknown_operation", "invalid_request")
+
+
+@pytest.mark.asyncio
+async def test_find_applications_by_company():
+    store = ApplicationStore(db_path=":memory:")
+    await store.initialize()
+    await store.create_application("cand_001", "job_001", "字节跳动", "后端开发", status="applied")
+    await store.create_application("cand_001", "job_002", "腾讯", "前端开发", status="planned")
+    results = await store.find_applications(candidate_id="cand_001", company="字节跳动")
+    assert len(results) == 1
+    assert results[0]["company"] == "字节跳动"
+    await store.close()
+
+
+@pytest.mark.asyncio
+async def test_find_applications_by_role():
+    store = ApplicationStore(db_path=":memory:")
+    await store.initialize()
+    await store.create_application("cand_001", "job_001", "字节跳动", "后端开发", status="applied")
+    await store.create_application("cand_001", "job_002", "腾讯", "前端开发", status="planned")
+    results = await store.find_applications(candidate_id="cand_001", role="前端")
+    assert len(results) == 1
+    assert results[0]["role"] == "前端开发"
+    await store.close()
+
+
+@pytest.mark.asyncio
+async def test_find_applications_fuzzy_match():
+    store = ApplicationStore(db_path=":memory:")
+    await store.initialize()
+    await store.create_application("cand_001", "job_001", "北京字节跳动科技有限公司", "后端开发工程师(实习)", status="applied")
+    results = await store.find_applications(candidate_id="cand_001", company="字节", role="后端")
+    assert len(results) == 1
+    await store.close()
+
+
+@pytest.mark.asyncio
+async def test_lookup_applications_helper():
+    from api.tools.application_store import lookup_applications
+    import tempfile, os
+
+    fd, db_path = tempfile.mkstemp(suffix=".db")
+    os.close(fd)
+    try:
+        store = ApplicationStore(db_path=db_path)
+        await store.initialize()
+        await store.create_application("cand_001", "job_001", "TestCo", "Backend", status="applied")
+        await store.close()
+
+        results = await lookup_applications(
+            candidate_id="cand_001", company="TestCo", db_path=db_path,
+        )
+        assert len(results) == 1
+        assert results[0]["company"] == "TestCo"
+    finally:
+        try:
+            os.unlink(db_path)
+        except OSError:
+            pass
+
+
+@pytest.mark.asyncio
+async def test_update_status_returns_previous_status():
+    """update_status response includes previous_status for Gate validation."""
+    store = ApplicationStore(db_path=":memory:")
+    await store.initialize()
+    record = await store.create_application("cand_001", "job_001", "TestCo", "后端开发", status="planned")
+    result = await store.update_status(record["application_id"], "applied")
+    assert result["status"] == "applied"
+    assert result.get("previous_status") == "planned"
+    await store.close()

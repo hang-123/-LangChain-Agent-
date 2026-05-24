@@ -1,7 +1,7 @@
 # System Architecture 规范
 
 ## 1. 目标
-描述 Job Assistant 阶段二的完整系统架构。架构从阶段一的"14 节点线性图"升级为分层设计：
+描述 Job Assistant 的完整系统架构，采用分层设计：
 
 - **3 Agent** — 需要 LLM 自主推理和决策
 - **7 Tool** — 确定性逻辑或单次 LLM 调用，不做自主决策
@@ -150,12 +150,19 @@ OfferEvaluator → ReportAgent → Gate
 用户输入：多个 offer 数据（公司、title、薪资、期权等）
 输出：OfferComparison（排名+建议）
 
-### 4.6 wf_application_followup_v1（阶段三）
+### 4.6 wf_application_followup_v1
 ```
-ApplicationStore(create/update) → Gate(status合法性检查)
+Supervisor(NL→ApplicationStoreRequest) → ApplicationStore(CRUD) → Gate(application专有规则)
 ```
-用户输入：投递操作（创建/更新状态/追加备注）
-输出：ApplicationRecord
+**用户输入**：自然语言投递管理指令（如"记录我投了字节后端实习""把字节的投递状态更新为面试中""查看我的投递列表"）
+
+**Supervisor 处理**：
+1. 确定性关键词匹配 → 识别为 application_followup 意图
+2. Regex 确定 operation（create_application / update_status / append_note / list_applications / get_application）
+3. LLM 提取实体（company, role, new_status, note_content）
+4. ID 自动补全：candidate_id 从 state 中取；application_id 通过 `lookup_applications()` 反查（单条自动填充，多条列选项，零命中标 missing）
+
+**输出**：ApplicationRecord + Gate 校验结果（status 合法性 + 必填字段 + 流转合法性）
 
 ## 5. Supervisor 路由规则
 
@@ -166,7 +173,17 @@ ApplicationStore(create/update) → Gate(status合法性检查)
 | 问"准备面试/会问什么" | wf_interview_prep_v2 | 缺 MatchAssessment → 先跑 wf_match_v2 |
 | 上传简历文件, 无结构化画像 | wf_profile_bootstrap | - |
 | 多个 offer 对比 | wf_offer_compare | 缺 offer 数据 → 提示提供 |
+| 投递管理（"记录投递/更新状态/我的申请/添加备注"） | wf_application_followup_v1 | 缺 candidate_id / application_id → 提示补充 |
 | 模糊查询（"帮我看看这个岗位"） | 默认 wf_match_v2 | 标注"信息不足，分析偏保守" |
+
+**优先级顺序**（确定性匹配）：
+1. 简历文件上传 → wf_profile_bootstrap
+2. Offer 对比 → wf_offer_compare
+3. 投递管理 → wf_application_followup_v1
+4. 简历定制 → wf_resume_tailor_v2
+5. 面试准备 → wf_interview_prep_v2
+6. 岗位匹配 → wf_match_v2
+7. 以上都不匹配 → LLM 回退
 
 ## 6. 执行与恢复
 
@@ -184,14 +201,3 @@ ApplicationStore(create/update) → Gate(status合法性检查)
 - Session 结束：save_memory_turn() → 持久化摘要 + artifact_refs
 - consolidation：周期性地将高价值 STM 记录提升为 LTM
 
-## 7. 与阶段一的差异
-
-| 维度 | 阶段一 | 阶段二 |
-|------|--------|--------|
-| 图结构 | 14节点固定线性图（服务2条工作流） | Supervisor动态选择 + 6条工作流 |
-| Agent数 | 14个（5个调LLM, 9个不调） | 3 Agent + 7 Tool + 1 Gate |
-| 路由 | 无（全跑） | Supervisor按需路由 |
-| 缺参处理 | ResumeTailorAgent返回空结果 | Supervisor提前检测并提示 |
-| Verifier | ResumeTailorAgent内嵌 FactCheckReport | 统一 Gate，所有产出均校验 |
-| 简历入口 | 需预先结构化输入 | ResumeParser 支持文件上传 |
-| JD入口 | 通过检索推断 | JobAnalyzer 支持直接粘贴JD解析 |

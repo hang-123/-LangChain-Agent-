@@ -30,13 +30,18 @@ async def run_search_orchestrator(state: dict[str, Any]) -> dict[str, Any]:
     # Run existing search logic
     result = await _legacy_search(state)
 
-    # Phase 2: Auto-writeback high-quality results to RAG
+    # Phase 2: Auto-writeback high-quality results to RAG + LTM bridge
     if settings.enable_rag and settings.enable_rag_writeback:
         try:
             from api.core.rag_store import auto_writeback
             evidence_items = result.get("evidence_items", [])
             if evidence_items:
-                await auto_writeback(evidence_items, settings.rag_writeback_quality_threshold)
+                await auto_writeback(
+                    evidence_items,
+                    settings.rag_writeback_quality_threshold,
+                    profile=query_profile,
+                    user_id=str(state.get("user_id") or ""),
+                )
         except Exception:
             pass  # Writeback failure is non-blocking
 

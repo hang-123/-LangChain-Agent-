@@ -30,7 +30,7 @@ async def _tool_result(raw_type: str, url: str) -> ToolSearchResult:
 
 @pytest.mark.asyncio
 async def test_search_agent_marks_rag_disabled_without_changing_retrieval(monkeypatch):
-    monkeypatch.delenv("ENABLE_RAG", raising=False)
+    monkeypatch.setenv("ENABLE_RAG", "0")
     get_settings.cache_clear()
 
     monkeypatch.setattr("api.agents.search_agent.search_company_profile_sources", lambda **_: _tool_result("company_profile", "https://example.com/company"))

@@ -1,0 +1,44 @@
+[
+  {
+    "case_id": "interview_001",
+    "query": "帮我准备面试问题",
+    "expected_intent": "interview_prep",
+    "interview_ground_truth": {
+      "min_behavioral_questions": 3,
+      "min_technical_questions": 2,
+      "min_project_deep_dive": 1,
+      "required_risk_questions": 1,
+      "expected_role_keywords": ["后端开发", "Python"],
+      "forbidden_phrases": ["保证通过", "完美答案"]
+    },
+    "risk_tags": []
+  },
+  {
+    "case_id": "interview_002",
+    "query": "generate interview questions for frontend role",
+    "expected_intent": "interview_prep",
+    "interview_ground_truth": {
+      "min_behavioral_questions": 3,
+      "min_technical_questions": 2,
+      "min_project_deep_dive": 1,
+      "required_risk_questions": 1,
+      "expected_role_keywords": ["前端", "React"],
+      "forbidden_phrases": []
+    },
+    "risk_tags": []
+  },
+  {
+    "case_id": "interview_003",
+    "query": "面试准备",
+    "expected_intent": "interview_prep",
+    "interview_ground_truth": {
+      "min_behavioral_questions": 2,
+      "min_technical_questions": 1,
+      "min_project_deep_dive": 1,
+      "required_risk_questions": 0,
+      "expected_role_keywords": [],
+      "forbidden_phrases": []
+    },
+    "risk_tags": ["sparse_input"]
+  }
+]

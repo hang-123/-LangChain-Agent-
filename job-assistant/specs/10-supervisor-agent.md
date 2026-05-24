@@ -1,7 +1,7 @@
-# Supervisor Agent 规范（阶段二）
+# Supervisor Agent 规范
 
 ## 1. 目标
-Supervisor 是系统的唯一入口 Agent。合并了阶段一的 IntentRouter，一步完成：意图识别 → 缺参检测 → 工作流选择 → 返回路由指令。
+Supervisor 是系统的唯一入口 Agent，一步完成：意图识别 → 缺参检测 → 工作流选择 → 返回路由指令。
 
 ## 2. 职责
 - 识别用户意图（general / tech_coding / salary_culture / match / resume_tailor / interview_prep / offer_compare / profile_bootstrap）
@@ -84,15 +84,7 @@ if query 包含 "匹配" | "适合吗" | "怎么样" | "分析" → intent = "ma
 - 不允许在没有 resume_evidence 时默认候选人技能
 - 不允许跳过缺参检测直接进入工作流
 
-## 9. 与阶段一的差异
-| 维度 | 阶段一 IntentRouter | 阶段二 Supervisor |
-|------|---------------------|-------------------|
-| 意图分类 | 3类 (general/tech_coding/salary_culture) | 8类 (+ match/resume_tailor/interview_prep/offer_compare/profile_bootstrap) |
-| 路由 | 无（固定线性图） | 6条工作流按需选择 |
-| 缺参检测 | 无 | 自动检测并提示 |
-| query_profile | 总是生成 | 仅匹配分析相关意图生成 |
-
-## 10. 观测指标
+## 9. 观测指标
 - 路由准确率（目标 >= 90%）
 - 缺参识别准确率（目标 >= 90%）
 - LLM 回退率（越低越好）

@@ -12,11 +12,43 @@ from pydantic import BaseModel, Field
 
 
 class MemoryType(str, Enum):
-    """Classification of long-term memories by cognitive type."""
+    """Classification of long-term memories by cognitive type (v2.0).
 
-    EPISODIC = "episodic"
-    SEMANTIC = "semantic"
-    PROCEDURAL = "procedural"
+    Types are split by 4 axes: decay speed, retrieval method, injection target, update frequency.
+    A type deserves its own class when it differs on >=2 axes from existing types.
+    """
+
+    ENTITY_KNOWLEDGE = "entity_knowledge"  # Verifiable facts about specific companies/roles
+    PATTERN = "pattern"                    # User characteristics extracted from behavior
+    PREFERENCE = "preference"              # Explicit/implicit user preferences
+    SEMANTIC = "semantic"                  # Industry general knowledge, interview methodology
+    EPISODIC = "episodic"                  # Single research run record and conclusion
+
+    # Lifetime overrides per type (days; None = never expires)
+    @property
+    def lifetime_days(self) -> int | None:
+        _LIFETIME = {
+            MemoryType.ENTITY_KNOWLEDGE: 180,
+            MemoryType.PATTERN: 180,
+            MemoryType.PREFERENCE: None,
+            MemoryType.SEMANTIC: 120,
+            MemoryType.EPISODIC: 60,
+        }
+        return _LIFETIME.get(self)
+
+    # Whether this type supports stale-while-revalidate refresh
+    @property
+    def supports_refresh(self) -> bool:
+        return self in (MemoryType.ENTITY_KNOWLEDGE, MemoryType.SEMANTIC)
+
+
+class MemoryStatus(str, Enum):
+    """Lifecycle status of a memory record (v2.0)."""
+
+    ACTIVE = "active"
+    EXPIRED_PENDING_REFRESH = "expired_pending_refresh"
+    REFRESH_FAILED = "refresh_failed"
+    SOFT_DELETED = "soft_deleted"
 
 
 class SourceType(str, Enum):
@@ -28,6 +60,7 @@ class SourceType(str, Enum):
     USER_PREFERENCE = "user_preference"
     STRATEGY_EVOLUTION = "strategy_evolution"
     SYSTEM_OBSERVATION = "system_observation"
+    RAG_WRITEBACK = "rag_writeback"  # v2.0: RAG → LTM bridge
 
 
 class ConversationSessionStatus(str, Enum):
@@ -85,7 +118,11 @@ class ConversationSession(BaseModel):
 
 
 class LongTermMemory(BaseModel):
-    """A persistent memory record that spans sessions."""
+    """A persistent memory record that spans sessions (v2.0).
+
+    v2.0 additions: lifetime_days, status, content_hash, refresh_attempts, last_refreshed_at.
+    Decay is now time-driven: importance = initial_importance × max(0, 1 - days_elapsed / lifetime_days).
+    """
 
     memory_id: str
     user_id: str
@@ -93,9 +130,15 @@ class LongTermMemory(BaseModel):
     source_type: SourceType
     content: str
     structured_data: dict[str, Any] = Field(default_factory=dict)
+    initial_importance: float = Field(default=0.5, ge=0.0, le=1.0)
     importance: float = Field(default=0.5, ge=0.0, le=1.0)
+    lifetime_days: int | None = None
     access_count: int = 0
+    status: MemoryStatus = MemoryStatus.ACTIVE
+    content_hash: str | None = None
+    refresh_attempts: int = 0
     last_accessed_at: str | None = None
+    last_refreshed_at: str | None = None
     created_at: str = ""
     expires_at: str | None = None
 
@@ -122,12 +165,26 @@ class MemoryHit(BaseModel):
 
 
 class MemoryContext(BaseModel):
-    """Formatted memory context ready for injection into agent state."""
+    """Formatted memory context ready for injection into agent state (v2.0).
+
+    Hits are grouped by type for distributed injection:
+      - entity_knowledge → SearchAgent query expansion
+      - pattern → Supervisor routing
+      - preference → Supervisor + Gate
+      - semantic → AnalysisAgent / ReportAgent
+      - episodic → MemoryRetrievalNode context block
+    """
 
     hits: list[MemoryHit] = Field(default_factory=list)
     formatted_text: str = ""
     hit_count: int = 0
     retrieval_time_ms: float = 0.0
+    # v2.0: typed groupings for distributed injection
+    entity_hits: list[MemoryHit] = Field(default_factory=list)
+    pattern_hits: list[MemoryHit] = Field(default_factory=list)
+    preference_hits: list[MemoryHit] = Field(default_factory=list)
+    semantic_hits: list[MemoryHit] = Field(default_factory=list)
+    episodic_hits: list[MemoryHit] = Field(default_factory=list)
 
 
 # -- Utility Functions --

@@ -1,7 +1,7 @@
-# AnalysisAgent 规范（阶段二）
+# AnalysisAgent 规范
 
 ## 1. 目标
-AnalysisAgent 是系统的核心分析 Agent。合并了阶段一的 QueryAgent + InsightAgent，统一做两阶段分析：
+AnalysisAgent 是系统的核心分析 Agent，负责两阶段深度分析：
 1. **Job-side analysis**：岗位需要什么（要求、技术栈、面试官视角）
 2. **Candidate-side analysis**：候选人差什么、怎么补（风险、准备策略、行动项）
 
@@ -145,15 +145,7 @@ AnalysisAgent 是系统的核心分析 Agent。合并了阶段一的 QueryAgent 
 | `MAX_ACTION_PLAN_DAYS` | `7` | 最大行动项天数 |
 
 ## 11. 实现文件
-- `api/agents/analysis_agent.py` — AnalysisAgent 主逻辑（合并 query_agent.py + insight_agent.py）
+- `api/agents/analysis_agent.py` — AnalysisAgent 主逻辑
 - `api/agents/query_agent.py` — 迁移/废弃
 - `api/agents/insight_agent.py` — 迁移/废弃
 
-## 12. 与阶段一的差异
-| 维度 | 阶段一 | 阶段二 |
-|------|--------|--------|
-| 组件 | QueryAgent + InsightAgent (2个Agent) | AnalysisAgent (1个Agent) |
-| 分析流程 | 先后跑两个 Agent，中间靠 insights dict 传数据 | 统一的二阶段分析 |
-| 工作流 | 固定线性（QueryAgent → InsightAgent） | 按需被工作流调用 |
-| 输出 | insights dict 分散在两个 Agent 里 | 统一 analysis sub-layer |
-| 依赖 | 直接消费 evidence_items | 同时消费 Tool 层 artifact |

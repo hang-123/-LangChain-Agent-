@@ -1,4 +1,4 @@
-# 求职助手 PRD（阶段二）
+# 求职助手 PRD
 
 ## 1. 产品名称
 Job Assistant
@@ -11,33 +11,12 @@ Job Assistant
 4. 针对目标岗位优化简历
 5. 个性化面试准备
 6. 多 offer 对比分析
-7. 投递流程管理（后期）
+7. 投递流程管理
 
 ## 3. 目标用户
 - 校招生
 
-## 4. 当前阶段定义
-
-### 阶段一（已完成）
-围绕 `岗位理解 -> 匹配分析 -> 简历定制 -> 基础事实校验` 的小闭环，14节点固定线性图。
-- 可选 RAG 岗位资料检索
-- 可选 user_id 对话记忆
-
-### 阶段二（当前交付范围）
-围绕 `3 Agent + 7 Tool + 1 Gate + 6 Workflow` 的分层架构：
-- Supervisor 智能路由（合并 IntentRouter）
-- Tool 层确定性逻辑（MatchingEngine, ResumeTailor, OfferEvaluator 0 LLM）
-- 统一 Gate 质量守门（合并 QualityGate + VerifierAgent）
-- AnalysisAgent 深度分析（合并 QueryAgent + InsightAgent）
-- ReportAgent 生成+自审（合并 ReportAgent + ReviewAgent）
-- ResumeParser 文件入口（合并 ProfilePipeline）
-- JobAnalyzer 岗位分析工具（合并 JIA + JDParser + LegitimacyScorer）
-- 完整 STM/LTM 记忆系统
-
-### 阶段三（后续扩展范围）
-- ApplicationStore + wf_application_followup_v1（投递流程管理）
-
-## 5. 核心场景
+## 4. 核心场景
 
 ### 场景 A：岗位匹配分析
 用户提供简历文件或结构化候选人信息 + 目标岗位信息，系统输出：
@@ -67,10 +46,10 @@ Job Assistant
 - 各 offer 评分明细
 - 排名与建议
 
-### 场景 E：投递管理（阶段三）
+### 场景 E：投递管理
 系统记录投递状态、下一步动作、跟进提醒。
 
-## 6. 非目标
+## 5. 非目标
 当前版本不负责：
 - 自动代投
 - 编造项目经历
@@ -79,7 +58,7 @@ Job Assistant
 - 自动抓取所有招聘平台并大规模海投
 - 自动生成最终排版好的 PDF / Word 简历模板
 
-## 7. 成功指标
+## 6. 成功指标
 - 岗位匹配分析可解释且稳定
 - 简历改写不虚构事实（fact_faithfulness = 100%）
 - 用户能在 5 分钟内完成完整的匹配分析
@@ -87,7 +66,7 @@ Job Assistant
 - Supervisor 路由准确率 > 90%
 - Gate 能拦截所有虚构/越界输出
 
-## 8. 核心约束
+## 7. 核心约束
 - 不允许虚构用户经历
 - 不允许伪造数字成果
 - 必须区分事实、推断、建议
@@ -97,20 +76,20 @@ Job Assistant
 - RAG 资料只作为岗位侧 evidence，不得进入 CandidateProfile 或 ResumeEvidence
 - 对话记忆只允许保存摘要和 artifact 引用
 
-## 9. 阶段二交付范围
+## 8. 交付范围
 
 ### 包含
 - 3 Agent: Supervisor, AnalysisAgent, ReportAgent
-- 7 Tool: SearchOrchestrator, JobAnalyzer, MatchingEngine, ResumeTailor, ResumeParser, InterviewCoach, OfferEvaluator
+- 8 Tool: SearchOrchestrator, JobAnalyzer, MatchingEngine, ResumeTailor, ResumeParser, InterviewCoach, OfferEvaluator, ApplicationStore
 - 1 Gate: 统一质量闸门 + 事实边界校验
 - 6 Workflow: wf_match_v2, wf_resume_tailor_v2, wf_interview_prep_v2, wf_profile_bootstrap, wf_offer_compare, wf_application_followup_v1
 - pgvector RAG 岗位资料检索 + 自动回写
 - 完整 STM/LTM 记忆系统 + consolidation
 - 所有 artifact 交付前经 Gate 校验
-- career-ops 能力融入（ArchetypeDetector, LegitimacyScorer, OfferEvaluator）
+- career-ops 能力（ArchetypeDetector, LegitimacyScorer, OfferEvaluator）
+- ApplicationStore 完整 CRUD + 状态流转 + Supervisor NL 意图提取 + Gate 质量校验
 
 ### 不包含
-- ApplicationStore 完整实现
 - 完整聊天历史长期回放
 - WorkflowState 真实分层迁移（保留兼容适配层）
 - Interview Eval / Routing Eval 大规模评测

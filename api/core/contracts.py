@@ -13,6 +13,7 @@ IssueSeverity = Literal["low", "medium", "high"]
 ResearchIntent = Literal[
     "general", "tech_coding", "salary_culture",
     "match", "resume_tailor", "interview_prep", "offer_compare", "profile_bootstrap",
+    "application_followup",
 ]
 
 
@@ -229,6 +230,8 @@ class NodeScorecard(BaseModel):
     report_compliance: int = Field(default=0, ge=0, le=100)
     matching: int = Field(default=0, ge=0, le=100)
     resume: int = Field(default=0, ge=0, le=100)
+    interview: int = Field(default=0, ge=0, le=100)
+    routing: int = Field(default=0, ge=0, le=100)
 
 
 class EvalMetadata(BaseModel):
@@ -590,6 +593,7 @@ class SupervisorResponse(BaseModel):
     missing_artifacts: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
     reasoning: str = ""
+    application_store_request: ApplicationStoreRequest | None = None
 
 
 class GateInput(BaseModel):
@@ -688,7 +692,7 @@ ApplicationStoreOperation = Literal[
 
 
 class ApplicationStoreRequest(BaseModel):
-    operation: str
+    operation: ApplicationStoreOperation
     payload: dict[str, Any] = Field(default_factory=dict)
 
 

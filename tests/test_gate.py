@@ -153,6 +153,110 @@ class TestGateRejected:
         assert "evidence_sufficiency" in checked or "candidate_fact_boundary" in checked
 
 
+class TestGateApplicationWorkflow:
+    """Gate checks specific to wf_application_followup_v1."""
+
+    def test_valid_application_record_passes(self):
+        result = run_gate(
+            artifacts={
+                "application_record": {
+                    "application_id": "app_test001",
+                    "candidate_id": "cand_001",
+                    "job_id": "job_001",
+                    "status": "planned",
+                },
+            },
+            workflow_id="wf_application_followup_v1",
+        )
+        assert result.status == "passed"
+        assert len(result.issues) == 0
+
+    def test_invalid_status_rejected(self):
+        result = run_gate(
+            artifacts={
+                "application_record": {
+                    "application_id": "app_test002",
+                    "candidate_id": "cand_001",
+                    "job_id": "job_001",
+                    "status": "bogus_status",
+                },
+            },
+            workflow_id="wf_application_followup_v1",
+        )
+        assert result.status == "rejected"
+        assert any(i["rule"] == "application_status_valid" for i in result.issues)
+
+    def test_missing_required_fields_rejected(self):
+        result = run_gate(
+            artifacts={
+                "application_record": {
+                    "application_id": "app_test003",
+                    "candidate_id": "",
+                    "job_id": "",
+                    "status": "draft",
+                },
+            },
+            workflow_id="wf_application_followup_v1",
+        )
+        assert result.status == "rejected"
+        assert any(i["rule"] == "application_required_fields" for i in result.issues)
+
+    def test_illegal_transition_rejected(self):
+        result = run_gate(
+            artifacts={
+                "application_record": {
+                    "application_id": "app_test004",
+                    "candidate_id": "cand_001",
+                    "job_id": "job_001",
+                    "status": "applied",
+                },
+                "previous_status": "offer",
+            },
+            workflow_id="wf_application_followup_v1",
+        )
+        assert result.status == "rejected"
+        assert any(i["rule"] == "application_transition" for i in result.issues)
+
+    def test_transition_from_terminal_rejected(self):
+        result = run_gate(
+            artifacts={
+                "application_record": {
+                    "application_id": "app_test005",
+                    "candidate_id": "cand_001",
+                    "job_id": "job_001",
+                    "status": "interviewing",
+                },
+                "previous_status": "rejected",
+            },
+            workflow_id="wf_application_followup_v1",
+        )
+        assert result.status == "rejected"
+        assert any(i["rule"] == "application_transition" for i in result.issues)
+
+    def test_empty_application_record_rejected(self):
+        result = run_gate(
+            artifacts={"application_record": {}},
+            workflow_id="wf_application_followup_v1",
+        )
+        assert result.status == "rejected"
+
+    def test_no_previous_status_skips_transition_check(self):
+        """When no previous_status, transition check is skipped (new record)."""
+        result = run_gate(
+            artifacts={
+                "application_record": {
+                    "application_id": "app_test006",
+                    "candidate_id": "cand_001",
+                    "job_id": "job_001",
+                    "status": "applied",
+                },
+                "previous_status": "",
+            },
+            workflow_id="wf_application_followup_v1",
+        )
+        assert result.status == "passed"
+
+
 class TestGateEdgeCases:
     def test_empty_input(self):
         """Gate handles completely empty input."""

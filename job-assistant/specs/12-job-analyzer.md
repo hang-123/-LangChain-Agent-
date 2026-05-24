@@ -1,7 +1,7 @@
-# JobAnalyzer Tool 规范（阶段二）
+# JobAnalyzer Tool 规范
 
 ## 1. 目标
-JobAnalyzer 是岗位分析的统一 Tool。合并了阶段一的 JobIntelligenceAgent + JDParser + LegitimacyScorer。
+JobAnalyzer 是岗位分析的统一 Tool。
 
 根据输入类型自动选择路径：
 - 有 `raw_jd_text` → 先解析 JD 文本 → 再用外部证据增强
@@ -100,15 +100,5 @@ JobAnalyzer 是岗位分析的统一 Tool。合并了阶段一的 JobIntelligenc
 
 ## 10. 实现文件
 - `api/tools/job_analyzer.py` — JobAnalyzer 主逻辑
-- `api/agents/job_intelligence_agent.py` — 迁移/废弃（逻辑迁移到 JobAnalyzer）
 - `api/agents/archetype_detector.py` — 原型检测（被 JobAnalyzer 调用的子模块）
 - `api/agents/legitimacy_scorer.py` — 合法性评分（被 JobAnalyzer 调用的子模块）
-
-## 11. 与阶段一的差异
-| 维度 | 阶段一 | 阶段二 |
-|------|--------|--------|
-| 组件 | JobIntelligenceAgent (Agent) + JDParser (独立Tool) + LegitimacyScorer (独立Agent) | JobAnalyzer (统一Tool) |
-| JD入口 | 仅从 evidence_items 推断 | 支持直接粘贴 JD 解析 |
-| 合法性评分 | 未接入主链路 | 内置于 JobAnalyzer |
-| 原型检测 | 独立 Agent | 作为 JobAnalyzer 子步骤 |
-| LLM调用 | 0次（纯转换） | 1次（如有 raw_jd_text）+ 可选 LLM 确认 archetype |

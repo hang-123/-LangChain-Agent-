@@ -1,9 +1,7 @@
-# SearchOrchestrator Tool 规范（阶段二）
+# SearchOrchestrator Tool 规范
 
 ## 1. 目标
 SearchOrchestrator 是统一搜索编排 Tool。单次 LLM 生成搜索查询词，随后纯确定性编排：并发调用 Tavily + RAG → 去重合并 → 评分排序。
-
-将阶段一的 SearchAgent 降级为 Tool。
 
 ## 2. 职责
 - 生成搜索查询词（LLM 单次调用）
@@ -89,7 +87,7 @@ SearchOrchestrator 是统一搜索编排 Tool。单次 LLM 生成搜索查询词
 | `TAVILY_API_KEY` | (空) | Tavily API key |
 | `TAVILY_MAX_RESULTS` | `5` | 每个搜索词的最大结果数 |
 | `SEARCH_CACHE_TTL` | `600` | 缓存存活秒数 |
-| `ENABLE_RAG` | `0` | 是否启用 RAG |
+| `ENABLE_RAG` | `True` | 是否启用 RAG（v2.0 默认开启）|
 | `RAG_TOP_K` | `4` | RAG 检索 top-k |
 
 ## 7. 非职责
@@ -104,11 +102,3 @@ SearchOrchestrator 是统一搜索编排 Tool。单次 LLM 生成搜索查询词
 - `api/core/rag_store.py` — RAG 存储和检索（已有）
 - `api/core/cache.py` — 搜索缓存（已有）
 
-## 9. 与阶段一的差异
-| 维度 | 阶段一 SearchAgent | 阶段二 SearchOrchestrator |
-|------|-------------------|--------------------------|
-| 类型 | Agent | Tool |
-| LLM | 1次（查询词） | 1次（查询词） |
-| RAG | 集成在 Agent 内部 | 统一编排层调用 |
-| 缓存 | 基于 query+intent+profile | 不变 |
-| 写入 | working_set.retrieval | 不变 |

@@ -52,13 +52,37 @@ def score_importance(turn: TurnRecord) -> float:
     return round(base, 2)
 
 
+# v2.0: Time-driven linear decay
+def compute_importance(initial: float, created_at: str, lifetime_days: int | None) -> float:
+    """Compute current importance based on elapsed time.
+
+    importance = initial × max(0, 1 - days_elapsed / lifetime_days)
+    """
+    if lifetime_days is None or lifetime_days <= 0:
+        return initial
+    try:
+        from datetime import datetime
+        created = datetime.strptime(created_at[:10], "%Y-%m-%d")
+        days = max(0, (datetime.utcnow() - created).days)
+        ratio = max(0.0, 1.0 - days / lifetime_days)
+        return round(initial * ratio, 4)
+    except (ValueError, IndexError):
+        return initial
+
+
 def classify_memory_type(turn: TurnRecord) -> MemoryType:
-    """Classify a turn into the appropriate memory type."""
+    """Classify a turn into the appropriate memory type (v2.0 5-type)."""
     s = turn.summary
+    # Episodic: has score + recommendation → single research event
     if s.overall_score is not None and s.recommendation:
         return MemoryType.EPISODIC
-    if s.archetype:
+    # Semantic: has archetype but no score → general knowledge
+    if s.archetype and s.overall_score is None:
         return MemoryType.SEMANTIC
+    # Default to Episodic for scored turns without explicit recommendation
+    if s.overall_score is not None:
+        return MemoryType.EPISODIC
+    # Fallback
     return MemoryType.EPISODIC
 
 
@@ -96,16 +120,34 @@ async def consolidate_session(
 
     created = 0
     for turn in turns:
-        importance = score_importance(turn)
-        if importance < 0.2:
-            continue  # skip low-value turns
+        initial_imp = score_importance(turn)
+        if initial_imp < 0.2:
+            continue
+
+        mem_type = classify_memory_type(turn)
+        src_type = classify_source_type(turn)
+        lifetime = mem_type.lifetime_days
+        now_iso = utc_now_iso()
+        created_at = turn.created_at or now_iso
+        content = _build_memory_content(turn)
+
+        # Compute expires_at from lifetime
+        import hashlib
+        expires_at = None
+        if lifetime is not None:
+            from datetime import datetime, timedelta
+            try:
+                created_dt = datetime.strptime(created_at[:10], "%Y-%m-%d")
+                expires_at = (created_dt + timedelta(days=lifetime)).isoformat()
+            except (ValueError, IndexError):
+                pass
 
         memory = LongTermMemory(
             memory_id=f"mem-{uuid.uuid4().hex[:16]}",
             user_id=user_id,
-            memory_type=classify_memory_type(turn),
-            source_type=classify_source_type(turn),
-            content=_build_memory_content(turn),
+            memory_type=mem_type,
+            source_type=src_type,
+            content=content,
             structured_data={
                 "company": turn.summary.company,
                 "role": turn.summary.role,
@@ -116,8 +158,13 @@ async def consolidate_session(
                 "run_id": turn.run_id,
                 "session_id": turn.session_id,
             },
-            importance=importance,
-            created_at=turn.created_at or utc_now_iso(),
+            initial_importance=initial_imp,
+            importance=initial_imp,
+            lifetime_days=lifetime,
+            status=MemoryStatus.ACTIVE,
+            content_hash=_hash_content(content),
+            created_at=created_at,
+            expires_at=expires_at,
         )
         try:
             await ltm_store.save(memory)
@@ -134,13 +181,19 @@ async def consolidate_session(
     return created
 
 
+def _hash_content(content: str) -> str:
+    import hashlib
+    return hashlib.md5(content.encode()).hexdigest()[:12]
+
+
 async def run_periodic_maintenance(
     *,
     ltm_store: LongTermMemoryStore,
     user_id: str,
 ) -> dict[str, int]:
-    """Run periodic memory maintenance: decay + expire.
+    """Run periodic memory maintenance: time-driven decay + expire + hard delete.
 
+    v2.0: decay is computed from elapsed time, not call frequency.
     Returns counts of {decayed, expired}.
     """
     result = {"decayed": 0, "expired": 0}

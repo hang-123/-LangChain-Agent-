@@ -21,7 +21,7 @@ def test_settings():
     assert s.analysis_temperature == 0.3
     assert s.enable_report_self_review is True
     assert s.search_cache_ttl == 600
-    assert s.enable_rag_writeback is False
+    assert s.enable_rag_writeback is True
     print("✓ Settings OK")
 
 

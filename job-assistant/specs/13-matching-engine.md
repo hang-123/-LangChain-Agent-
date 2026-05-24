@@ -1,7 +1,7 @@
-# MatchingEngine Tool 规范（阶段二）
+# MatchingEngine Tool 规范
 
 ## 1. 目标
-候选人技能 × 岗位要求的纯关键词匹配引擎。0 LLM 调用，将阶段一的 MatchingAgent 降级为确定性 Tool。
+候选人技能 × 岗位要求的纯关键词匹配引擎。0 LLM 调用，确定性 Tool。
 
 ## 2. 职责
 - 计算整体匹配度与分维度得分（skills / experience / domain_fit / education / location_fit）
@@ -88,14 +88,4 @@ overall_score = skills × 0.45 + experience × 0.2 + domain × 0.15 + education 
 无需额外配置。匹配逻辑为纯确定性算法，不依赖外部服务。
 
 ## 9. 实现文件
-- `api/tools/matching_engine.py` — MatchingEngine 主逻辑（从 matching_agent.py 迁移）
-- `api/agents/matching_agent.py` — 废弃/删除
-
-## 10. 与阶段一的差异
-| 维度 | 阶段一 MatchingAgent | 阶段二 MatchingEngine |
-|------|---------------------|----------------------|
-| 类型 | Agent（名不副实） | Tool |
-| LLM | 0次 | 0次 |
-| 输入 | job_snapshot | job_snapshot + archetype_detection |
-| 合法性感知 | 无 | Suspicious 岗位追加风险警告 |
-| 位置 | 固定图节点 | 按需被工作流调用 |
+- `api/tools/matching_engine.py` — MatchingEngine 主逻辑

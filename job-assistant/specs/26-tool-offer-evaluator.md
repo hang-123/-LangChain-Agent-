@@ -1,4 +1,4 @@
-# OfferEvaluator Tool 规范（阶段二）
+# OfferEvaluator Tool 规范
 
 ## 1. 目标
 多 offer 对比工具。纯数学加权矩阵计算，0 LLM 调用。输入多个 offer 数据，输出排名和建议。

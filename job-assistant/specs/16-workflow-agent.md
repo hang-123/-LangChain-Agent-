@@ -1,7 +1,7 @@
-# Workflow Agent 规范（阶段二）
+# Workflow Agent 规范
 
 ## 1. 目标
-WorkflowAgent 在阶段二升级为完整的编排引擎。当 Supervisor 选定工作流后，WorkflowAgent 负责：
+WorkflowAgent 是完整的编排引擎。当 Supervisor 选定工作流后，WorkflowAgent 负责：
 - 按工作流定义顺序调用 Agent/Tool/Gate
 - 传递 WorkflowState 在各节点间
 - 支持从最近成功节点恢复
@@ -71,7 +71,7 @@ OfferEvaluator → ReportAgent → Gate
 
 **输出**：OfferComparison + 报告
 
-### 2.6 wf_application_followup_v1（阶段三）
+### 2.6 wf_application_followup_v1
 ```
 ApplicationStore(create/update) → Gate
 ```
@@ -133,11 +133,3 @@ ApplicationStore(create/update) → Gate
 - `api/core/workflow_state.py` — WorkflowState 读写（已有）
 - `api/core/executor.py` — ResearchExecutionSession（已有，需更新工作流入口）
 
-## 10. 与阶段一的差异
-| 维度 | 阶段一 | 阶段二 |
-|------|--------|--------|
-| 工作流数 | 2条（固定线性图） | 6条（Supervisor 按需选择） |
-| 编排 | LangGraph 2节点+线性边 | 固定序列调用，无图依赖 |
-| 恢复 | ReviewAgent 回退到单个节点 | 按 artifact 粒度恢复 |
-| Gate | 无统一 Gate | 每条工作流末尾 Gate |
-| Supervisor | 无 | 前置路由 |

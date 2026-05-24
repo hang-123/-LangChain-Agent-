@@ -1,21 +1,21 @@
-# Gate System 规范（阶段二）
+# Gate System 规范
 
 ## 1. 目标
-Gate 是系统级、纯规则、0 LLM 的质量守门组件。合并了阶段一的 QualityGate + VerifierAgent。
+Gate 是系统级、纯规则、0 LLM 的质量守门组件，统一承担输入质量检查和输出真实性验证的全部职责。
 
 在任何用户可见输出交付前，统一检查所有 artifact 的输入质量和输出真实性。
 
 ## 2. 职责
-- 检查检索证据充足性（QualityGate 原职责）
+- 检查检索证据充足性
 - 检查公司特异性覆盖率
-- 检查事实边界（VerifierAgent 原职责）
+- 检查事实边界
 - 检查证据引用完整性
 - 检查虚构/越界断言
 - 决定：passed | downgraded | rejected
 
 ## 3. 检查维度
 
-### 3.1 输入质量维度（原 QualityGate）
+### 3.1 输入质量维度
 
 | 检查项 | 阈值来源 | 若失败 |
 |--------|---------|--------|
@@ -25,7 +25,7 @@ Gate 是系统级、纯规则、0 LLM 的质量守门组件。合并了阶段一
 | action_plan_source_coverage >= min_action_plan_source_coverage | QualityPolicy | 追加 warning |
 | missing_classes 非空 | RetrievalPolicy | 追加 warning, root_cause="retrieval" |
 
-### 3.2 输出真实性维度（原 VerifierAgent）
+### 3.2 输出真实性维度
 
 | 检查项 | 规则 | 若失败 |
 |--------|------|--------|
@@ -113,16 +113,6 @@ else → status = "passed"
 - 不自动修复发现的问题
 
 ## 8. 实现文件
-- `api/core/gate.py` — Gate 主逻辑（合并 quality_gate.py + rule_checker.py）
-- `api/agents/quality_gate.py` — 迁移/废弃
-- `api/review/rule_checker.py` — 迁移/废弃
-- `api/review/issue_catalog.py` — Gate 问题编码定义（保留）
+- `api/core/gate.py` — Gate 主逻辑
+- `api/review/issue_catalog.py` — Gate 问题编码定义
 
-## 9. 与阶段一的差异
-| 维度 | 阶段一 | 阶段二 Gate |
-|------|--------|------------|
-| 组件 | QualityGate (Agent) + VerifierAgent (最小形态内嵌于 ResumeTailor) + ReviewAgent (LLM审查) | 统一 Gate System (0 LLM) |
-| 检查范围 | QualityGate查检索质量，FactCheckReport查简历事实 | 所有 artifact 全覆盖 |
-| LLM | 0次 | 0次 |
-| 位置 | 固定图节点 | 每条工作流末尾调用 |
-| 决策 | 仅保守/正常 | passed / downgraded / rejected 三态 |

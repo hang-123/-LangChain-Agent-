@@ -2,7 +2,7 @@
 
 ## 1. 概述
 
-本规范定义 Job Assistant 阶段二的完整测试需求，覆盖 3 Agent + 7 Tool + 1 Gate + 6 Workflow 的分层架构。
+本规范定义 Job Assistant 的完整测试需求，覆盖 3 Agent + 7 Tool + 1 Gate + 6 Workflow 的分层架构。
 
 ### 1.1 测试金字塔
 
@@ -51,7 +51,7 @@
 | 工作流集成测试 | 6条工作流的端到端链路、Tool→Agent→Gate 数据流 | 真实用户场景的性能压测 |
 | Gate 校验测试 | 所有检查规则、三态决策、与 ReportAgent 的延迟问题交互 | — |
 | 记忆系统测试 | STM 读/写、LTM 语义检索、consolidation 流程、衰减机制 | 大规模记忆数据下的性能 |
-| Eval 回归测试 | 已有 matching/resume eval cases、检索/归因/洞察评分 | 新 eval 维度（interview/routing，阶段三） |
+| Eval 回归测试 | 已有 matching/resume eval cases、检索/归因/洞察评分 | 新 eval 维度（interview/routing） |
 
 ---
 

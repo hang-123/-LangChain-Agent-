@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import traceback
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, AsyncIterator
 
 from fastapi import FastAPI, HTTPException, Query
@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field, model_validator
 
-from utils.logger import _write as _log_raw
+from utils.logger import log_error, log_warning
 
 from api.core.executor import ResearchExecutionSession
 from api.core.graph import build_graph, build_initial_state, parse_review_feedback_json
@@ -100,14 +100,9 @@ def _get_graph() -> Any:
     return _graph
 
 
-def _log_exception(context: str, exc: Exception) -> str:
+def _log_exception(context: str, exc: Exception, *, run_id: str = "", node: str = "") -> str:
     trace = traceback.format_exc()
-    payload = f"{context}: {exc!r}\n{trace}"
-    try:
-        _log_raw("forum_error", payload)
-    except Exception:
-        pass
-    print(payload)
+    log_error(context, exc, run_id=run_id, node=node)
     return trace
 
 
