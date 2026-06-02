@@ -10,7 +10,6 @@ __pycache__
 *.pyo
 *.egg-info
 .eggs
-dist
 *.egg
 .pytest_cache
 .mypy_cache
@@ -22,7 +21,6 @@ env
 
 # Node / Frontend
 web/node_modules
-web/dist  # 由多阶段构建生成，不需 COPY
 
 # IDE
 .idea
