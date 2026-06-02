@@ -276,52 +276,35 @@ class RagStore:
             ]
         ).strip()
         settings = get_settings()
-        dense_weight = float(settings.rag_dense_weight or 0.7)
-        sparse_weight = float(settings.rag_sparse_weight or 0.3)
-
         embedding = await embed_query(query_text)
-        # Build keyword tokens for sparse full-text search
         keywords = _extract_search_keywords(query_text)
 
-        with self._connect() as connection:
-            with connection.cursor() as cursor:
-                if keywords:
-                    # Hybrid: dense vector + sparse tsquery → RRF merged
-                    cursor.execute(
-                        """
-                        SELECT chunk_id, document_id, source_type, title, url, text, metadata,
-                               (%s * (1 - (embedding <=> %s)))
-                               + (%s * ts_rank(to_tsvector('simple', text), plainto_tsquery('simple', %s)))
-                               AS score,
-                               updated_at
-                        FROM job_chunks
-                        WHERE source_type = ANY(%s)
-                        ORDER BY score DESC
-                        LIMIT %s
-                        """,
-                        (
-                            dense_weight, embedding,
-                            sparse_weight, " & ".join(keywords),
-                            list(ALLOWED_SOURCE_TYPES), int(top_k),
-                        ),
-                    )
-                else:
-                    # Dense-only fallback
-                    cursor.execute(
-                        """
-                        SELECT chunk_id, document_id, source_type, title, url, text, metadata,
-                               (1 - (embedding <=> %s)) AS score,
-                               updated_at
-                        FROM job_chunks
-                        WHERE source_type = ANY(%s)
-                        ORDER BY embedding <=> %s
-                        LIMIT %s
-                        """,
-                        (embedding, list(ALLOWED_SOURCE_TYPES), embedding, int(top_k)),
-                    )
-                rows = cursor.fetchall()
+        # RRF constants
+        RRF_K = 60
+        DENSE_FETCH_K = max(int(top_k) * 5, 30)
+        SPARSE_FETCH_K = max(int(top_k) * 5, 30)
+
+        # Step 1: Dense + Sparse retrieval (parallel queries)
+        dense_rows = await self._search_dense(embedding, DENSE_FETCH_K)
+        sparse_rows = await self._search_sparse(keywords, SPARSE_FETCH_K) if keywords else []
+
+        # Step 2: RRF fusion
+        if sparse_rows:
+            merged_rows = self._rrf_fusion(dense_rows, sparse_rows, k=RRF_K)
+        else:
+            # Dense-only fallback (no keywords)
+            merged_rows = dense_rows
+
+        # Step 3: Cross-Encoder rerank (optional)
+        if settings.enable_reranker and merged_rows:
+            reranker_candidate_k = min(20, len(merged_rows))
+            candidates = merged_rows[:reranker_candidate_k]
+            reranked = await self._apply_reranker(query_text, candidates, int(top_k))
+            merged_rows = reranked if reranked else candidates
+
+        # Step 4: Return top_k
         hits: list[RagSearchHit] = []
-        for row in rows:
+        for row in merged_rows[:int(top_k)]:
             chunk_id, document_id, source_type, title, url, text, metadata, score, updated_at = row
             hits.append(
                 RagSearchHit(
@@ -339,6 +322,109 @@ class RagStore:
                 )
             )
         return hits
+
+    async def _search_dense(self, embedding: list[float], limit: int) -> list[tuple]:
+        """Dense vector similarity search via pgvector cosine distance."""
+        with self._connect() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT chunk_id, document_id, source_type, title, url, text, metadata,
+                           (1 - (embedding <=> %s)) AS score,
+                           updated_at
+                    FROM job_chunks
+                    WHERE source_type = ANY(%s)
+                    ORDER BY embedding <=> %s
+                    LIMIT %s
+                    """,
+                    (embedding, list(ALLOWED_SOURCE_TYPES), embedding, int(limit)),
+                )
+                return cursor.fetchall()
+
+    async def _search_sparse(self, keywords: list[str], limit: int) -> list[tuple]:
+        """Full-text keyword search via PostgreSQL ts_rank."""
+        with self._connect() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT chunk_id, document_id, source_type, title, url, text, metadata,
+                           ts_rank(to_tsvector('simple', text), plainto_tsquery('simple', %s)) AS score,
+                           updated_at
+                    FROM job_chunks
+                    WHERE source_type = ANY(%s)
+                      AND to_tsvector('simple', text) @@ plainto_tsquery('simple', %s)
+                    ORDER BY score DESC
+                    LIMIT %s
+                    """,
+                    (" & ".join(keywords), list(ALLOWED_SOURCE_TYPES), " & ".join(keywords), int(limit)),
+                )
+                return cursor.fetchall()
+
+    @staticmethod
+    def _rrf_fusion(
+        dense_rows: list[tuple],
+        sparse_rows: list[tuple],
+        k: int = 60,
+    ) -> list[tuple]:
+        """Reciprocal Rank Fusion: merge two ranked lists into one.
+
+        RRF(d) = Σ 1/(k + rank_i(d))
+
+        A document's chunk_id serves as its key. Documents appearing in both
+        lists get a higher combined RRF score.
+        """
+        rrf_scores: dict[str, tuple[float, tuple]] = {}
+
+        for rank, row in enumerate(dense_rows, start=1):
+            chunk_id = str(row[0])
+            score = 1.0 / (k + rank)
+            # Preserve the dense score as the per-row score
+            rrf_scores[chunk_id] = (float(score), row)
+
+        for rank, row in enumerate(sparse_rows, start=1):
+            chunk_id = str(row[0])
+            contrib = 1.0 / (k + rank)
+            if chunk_id in rrf_scores:
+                existing_score, existing_row = rrf_scores[chunk_id]
+                rrf_scores[chunk_id] = (existing_score + contrib, existing_row)
+            else:
+                rrf_scores[chunk_id] = (contrib, row)
+
+        # Sort by RRF score descending, replace original score with RRF score
+        sorted_items = sorted(rrf_scores.items(), key=lambda x: x[1][0], reverse=True)
+        result: list[tuple] = []
+        for chunk_id, (rrf_score, row) in sorted_items:
+            # row = (chunk_id, doc_id, src_type, title, url, text, metadata, old_score, updated_at)
+            # Replace old_score at index 7 with RRF score
+            result.append((*row[:7], rrf_score, row[8]))
+        return result
+
+    async def _apply_reranker(
+        self, query: str, rows: list[tuple], top_k: int
+    ) -> list[tuple] | None:
+        """Apply Cross-Encoder reranker to candidate rows.
+
+        Returns reranked rows (same format but with updated scores) or None
+        if the reranker fails or returns empty results.
+        """
+        try:
+            from api.core.embedding import build_reranker
+
+            reranker = build_reranker()
+            documents = [str(row[5]) for row in rows]  # row[5] = text
+            reranked = await reranker.rerank(query, documents, top_n=top_k)
+            if not reranked:
+                return None
+
+            result: list[tuple] = []
+            for orig_idx, score in reranked:
+                if 0 <= orig_idx < len(rows):
+                    row = rows[orig_idx]
+                    # Replace old score at index 7 with reranker score
+                    result.append((*row[:7], float(score), row[8]))
+            return result if result else None
+        except Exception:
+            return None
 
 
 def _extract_search_keywords(text: str) -> list[str]:

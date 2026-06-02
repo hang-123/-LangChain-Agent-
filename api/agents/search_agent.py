@@ -592,6 +592,18 @@ async def search_agent_node(state: dict[str, Any]) -> dict[str, Any]:
         except Exception:
             rag_failures.append("rag:unexpected search failure")
 
+    # Stage 2: LLM Reranker (fine-grained semantic scoring)
+    if rag_hits and get_settings().enable_llm_reranker:
+        try:
+            from api.core.llm_reranker import build_llm_reranker
+            reranker = build_llm_reranker()
+            if reranker:
+                rag_hits = await reranker.rerank_hits(
+                    query=query, hits=rag_hits, top_k=max(5, len(rag_hits))
+                )
+        except Exception:
+            pass  # LLM reranker failure is non-blocking
+
     if rag_hits:
         existing_urls = {source.url for result in tool_results for source in result.sources}
         rag_sources: list[NormalizedSource] = []

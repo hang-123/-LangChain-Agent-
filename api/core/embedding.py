@@ -189,13 +189,67 @@ class OpenAICompatibleBackend:
 
 
 class NullReranker:
-    """Passthrough reranker — placeholder for future cross-encoder integration."""
+    """Passthrough reranker — returns documents in original order."""
 
     async def rerank(
-        self, query: str, documents: list[str], top_k: int = 5
+        self, query: str, documents: list[str], top_n: int = 5
     ) -> list[tuple[int, float]]:
         """Return documents in original order with neutral scores."""
-        return [(i, 1.0) for i in range(min(top_k, len(documents)))]
+        return [(i, 1.0) for i in range(min(top_n, len(documents)))]
+
+
+class SiliconFlowRerankerBackend:
+    """Cross-Encoder reranker via SiliconFlow Rerank API.
+
+    Uses BAAI/bge-reranker-v2-m3 (free tier) via:
+        POST https://api.siliconflow.cn/v1/rerank
+
+    Reuses the same API key as embeddings (EMBEDDING_API_KEY).
+    """
+
+    def __init__(self, api_key: str, model: str = "BAAI/bge-reranker-v2-m3") -> None:
+        self.api_key = api_key
+        self.model = model
+        self._base_url = "https://api.siliconflow.cn/v1"
+
+    async def rerank(
+        self, query: str, documents: list[str], top_n: int = 5
+    ) -> list[tuple[int, float]]:
+        """Rerank documents by relevance to query.
+
+        Returns list of (original_index, relevance_score) sorted by score desc.
+        """
+        if not documents:
+            return []
+
+        import aiohttp
+
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    f"{self._base_url}/rerank",
+                    headers={
+                        "Authorization": f"Bearer {self.api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "model": self.model,
+                        "query": query,
+                        "documents": documents,
+                        "top_n": min(top_n, len(documents)),
+                    },
+                    timeout=aiohttp.ClientTimeout(total=15),
+                ) as resp:
+                    if resp.status != 200:
+                        return NullReranker().rerank(query, documents, top_n)
+                    data = await resp.json()
+                    results = data.get("results", [])
+                    return [
+                        (int(r["index"]), float(r["relevance_score"]))
+                        for r in results
+                    ]
+        except Exception:
+            return NullReranker().rerank(query, documents, top_n)
 
 
 # -- Factory --
@@ -244,10 +298,30 @@ def build_embedding_backend() -> EmbeddingBackend:
     raise ValueError(f"Unknown embedding provider: {provider}")
 
 
-def build_reranker() -> NullReranker:
-    """Build reranker backend. Currently returns NullReranker passthrough."""
+def build_reranker() -> SiliconFlowRerankerBackend | NullReranker:
+    """Build reranker backend based on settings."""
     settings = get_settings()
     if not settings.enable_reranker:
         return NullReranker()
-    # Future: BGE-Reranker-v2-m3, Cohere Rerank v3, etc.
+
+    provider = str(settings.reranker_provider or "siliconflow").strip().lower()
+    if provider == "siliconflow":
+        api_key = (
+            settings.embedding_api_key.get_secret_value()
+            if settings.embedding_api_key
+            else ""
+        )
+        if not api_key:
+            api_key = (
+                settings.openai_api_key.get_secret_value()
+                if settings.openai_api_key
+                else ""
+            )
+        if not api_key:
+            return NullReranker()
+        return SiliconFlowRerankerBackend(
+            api_key=api_key,
+            model=str(settings.reranker_model or "BAAI/bge-reranker-v2-m3"),
+        )
+
     return NullReranker()
