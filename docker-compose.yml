@@ -1,10 +1,45 @@
 version: "3.9"
 
+# ============================================================
+# BettaFish — Production Docker Compose
+# ============================================================
+#
+# 快速启动:
+#   1. cp .env.example .env  →  编辑填入 API Keys
+#   2. docker compose up -d
+#   3. 访问 http://<你的服务器IP>:80
+#
+# 服务架构:
+#   nginx (80) → app (9000) + 静态前端
+#               → postgres (5432) + pgvector
+#               → redis (6379)
+
 services:
-  app:
-    build: .
+  # =========================================
+  # Nginx — 反向代理 + 前端静态文件
+  # =========================================
+  nginx:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
     ports:
-      - "9000:9000"
+      - "80:80"
+    depends_on:
+      app:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - bettafish-net
+
+  # =========================================
+  # FastAPI 后端
+  # =========================================
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    expose:
+      - "9000"
     env_file:
       - .env
     depends_on:
@@ -13,29 +48,80 @@ services:
       redis:
         condition: service_started
     restart: unless-stopped
+    networks:
+      - bettafish-net
+    volumes:
+      - app_logs:/app/logs
+      - app_var:/app/var
 
+  # =========================================
+  # PostgreSQL 16 + pgvector
+  # =========================================
   postgres:
     image: pgvector/pgvector:pg16
     environment:
-      POSTGRES_DB: bettafish
-      POSTGRES_USER: bettafish
-      POSTGRES_PASSWORD: bettafish
+      POSTGRES_DB: ${PG_DB:-bettafish}
+      POSTGRES_USER: ${PG_USER:-bettafish}
+      POSTGRES_PASSWORD: ${PG_PASSWORD:-bettafish}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"  # 仅本地访问，不暴露公网
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - ./data/init.sql:/docker-entrypoint-initdb.d/init.sql:ro  # 可选初始化脚本
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U bettafish -d bettafish"]
-      interval: 5s
+      test: ["CMD-SHELL", "pg_isready -U ${PG_USER:-bettafish} -d ${PG_DB:-bettafish}"]
+      interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 30s
     restart: unless-stopped
+    networks:
+      - bettafish-net
+    # 资源限制 (根据你服务器配置调整)
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
 
+  # =========================================
+  # Redis 7
+  # =========================================
   redis:
     image: redis:7-alpine
     ports:
-      - "6380:6379"
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - redisdata:/data
+    command: redis-server --appendonly yes --maxmemory 128mb --maxmemory-policy allkeys-lru
     restart: unless-stopped
+    networks:
+      - bettafish-net
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 64M
 
+# ============================================
+# 命名卷 (持久化数据)
+# ============================================
 volumes:
   pgdata:
+    name: bettafish_pgdata
+  redisdata:
+    name: bettafish_redisdata
+  app_logs:
+    name: bettafish_logs
+  app_var:
+    name: bettafish_var
+
+# ============================================
+# 内网
+# ============================================
+networks:
+  bettafish-net:
+    name: bettafish_net
+    driver: bridge

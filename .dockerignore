@@ -1,0 +1,68 @@
+# Git
+.git
+.gitignore
+.github
+.worktrees
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.egg-info
+.eggs
+dist
+*.egg
+.pytest_cache
+.mypy_cache
+.ruff_cache
+venv
+.venv
+env
+.env  # 不要打进镜像！通过 docker-compose 注入
+
+# Node / Frontend
+web/node_modules
+web/dist  # 由多阶段构建生成，不需 COPY
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Project specific
+logs
+*.log
+data
+var
+bench
+guardrails
+prompt_pack
+security
+scripts
+tests
+docs
+_resume_text.txt
+deep-research-report.md
+面试题.txt
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Claude
+.claude
+.superpowers
+AGENTS.md
+
+# Sensitive
+*.pdf
+*.pem
+*.key
