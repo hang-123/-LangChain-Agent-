@@ -360,14 +360,37 @@ Recommended updates:
 - add `17-verifier-agent.md`
 - keep `22-tool-application-store.md`, but pair it later with an application workflow service spec
 
-## 11. Testing Strategy
+## 11. Phased Rollout
 
-### 11.1 Contract Tests
+### Phase 1: Spec And Contract Alignment
+
+- write architecture docs
+- update domain model
+- realign agent/service boundaries in specs
+
+### Phase 2: Job Intelligence Refactor
+
+- carve job-side enrichment out of the current research graph
+- define `ExternalEvidencePack` and `JobSnapshot`
+- keep existing retrieval logic, but change its architectural role
+
+### Phase 3: Workflow Integration
+
+- wire `SupervisorAgent` to candidate track, job track, matching track, and verifier
+- update downstream tailoring and interview flows to consume shared artifacts
+
+### Phase 4: Application Workflow Integration
+
+- connect application persistence and reminders to the new artifact model
+
+## 12. Testing Strategy
+
+### 12.1 Contract Tests
 
 - artifact schema tests
 - backward-compatibility checks where needed
 
-### 11.2 Workflow Tests
+### 12.2 Workflow Tests
 
 - candidate-only input
 - job-only input
@@ -375,18 +398,18 @@ Recommended updates:
 - weak evidence downgrade scenarios
 - conflict scenarios between manual JD and external evidence
 
-### 11.3 Guardrail Tests
+### 12.3 Guardrail Tests
 
 - fabricated fact rejection
 - evidence coverage enforcement
 - verifier downgrade enforcement
 
-### 11.4 Regression Tests
+### 12.4 Regression Tests
 
 - preserve current external evidence retrieval quality
 - ensure new orchestration does not regress existing research strengths
 
-## 12. Risks And Tradeoffs
+## 13. Risks And Tradeoffs
 
 ### Risk 1: Over-Agentification
 
@@ -420,7 +443,7 @@ Mitigation:
 
 - demote the old graph into a job-side subsystem
 
-## 13. Final Recommendation
+## 14. Final Recommendation
 
 Adopt the hybrid architecture with:
 
